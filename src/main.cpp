@@ -1,23 +1,31 @@
-ï»¿
-#include "opencv2/core/core.hpp"
-#include <opencv2/imgproc/imgproc.hpp>
-#include <opencv2/highgui/highgui.hpp>
 #include <iostream>
 //#include <conio.h>
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/photo.hpp>
 #include <opencv2/highgui/highgui_c.h>
 #include <memory>
-#include <chrono>
+//#include <chrono>
 #include <time.h>
+//#include "detector.h"
+//#include "cxxopts.hpp"
 #include "UA-DETRAC.h"
 
 #include <vector>
 // iou relevant
 #include "IOUT.h"
+#include "ImageAnalysis.hpp"
+
+#include "FrameDiff.h"
+
 
 #define yolov5 0
+#define debug 0
 
+// ±È960X720 µÈ±ÈËõĞ¡3±¶
+#define RESIZE_WIDTH 960
+#define RESIZE_HEIGHT 720
+
+#define CHECK_INTERVAL 10
 using namespace cv;
 //using namespace std;
 
@@ -43,7 +51,7 @@ struct gaussian
 	double weight;								// Represents the measure to which a particular component defines the pixel value
 	gaussian* Next;
 	gaussian* Previous;
-} *ptr, * start, * rear, * g_temp, * save, * next, * previous, * nptr, * temp_ptr;
+} *ptr, * start, * rear, * g_temp, * save, * gnext, * previous, * nptr, * temp_ptr;
 
 struct MYNode
 {
@@ -176,7 +184,7 @@ void Insert_End_gaussian(gaussian* nptr)
 gaussian* Delete_gaussian(gaussian* nptr)
 {
 	previous = nptr->Previous;
-	next = nptr->Next;
+	gnext = nptr->Next;
 	if (start != NULL)
 	{
 		if (nptr == start && nptr == rear)
@@ -186,8 +194,8 @@ gaussian* Delete_gaussian(gaussian* nptr)
 		}
 		else if (nptr == start)
 		{
-			next->Previous = NULL;
-			start = next;
+			gnext->Previous = NULL;
+			start = gnext;
 			delete nptr;
 			nptr = start;
 		}
@@ -200,10 +208,10 @@ gaussian* Delete_gaussian(gaussian* nptr)
 		}
 		else
 		{
-			previous->Next = next;
-			next->Previous = previous;
+			previous->Next = gnext;
+			gnext->Previous = previous;
 			delete nptr;
-			nptr = next;
+			nptr = gnext;
 		}
 	}
 	else
@@ -215,16 +223,16 @@ gaussian* Delete_gaussian(gaussian* nptr)
 	return nptr;
 }
 
-//CheckMode: 0ä»£è¡¨å»é™¤é»‘åŒºåŸŸï¼Œ1ä»£è¡¨å»é™¤ç™½åŒºåŸŸ; NeihborModeï¼š0ä»£è¡¨4é‚»åŸŸï¼Œ1ä»£è¡¨8é‚»åŸŸ;  
+//CheckMode: 0´ú±íÈ¥³ıºÚÇøÓò£¬1´ú±íÈ¥³ı°×ÇøÓò; NeihborMode£º0´ú±í4ÁÚÓò£¬1´ú±í8ÁÚÓò;  
 void RemoveSmallRegion(Mat& Src, Mat& Dst, int AreaLimit, int CheckMode, int NeihborMode)
 {
-	int RemoveCount = 0;       //è®°å½•é™¤å»çš„ä¸ªæ•°  
-	//è®°å½•æ¯ä¸ªåƒç´ ç‚¹æ£€éªŒçŠ¶æ€çš„æ ‡ç­¾ï¼Œ0ä»£è¡¨æœªæ£€æŸ¥ï¼Œ1ä»£è¡¨æ­£åœ¨æ£€æŸ¥,2ä»£è¡¨æ£€æŸ¥ä¸åˆæ ¼ï¼ˆéœ€è¦åè½¬é¢œè‰²ï¼‰ï¼Œ3ä»£è¡¨æ£€æŸ¥åˆæ ¼æˆ–ä¸éœ€æ£€æŸ¥  
+	int RemoveCount = 0;       //¼ÇÂ¼³ıÈ¥µÄ¸öÊı  
+	//¼ÇÂ¼Ã¿¸öÏñËØµã¼ìÑé×´Ì¬µÄ±êÇ©£¬0´ú±íÎ´¼ì²é£¬1´ú±íÕıÔÚ¼ì²é,2´ú±í¼ì²é²»ºÏ¸ñ£¨ĞèÒª·´×ªÑÕÉ«£©£¬3´ú±í¼ì²éºÏ¸ñ»ò²»Ğè¼ì²é  
 	Mat Pointlabel = Mat::zeros(Src.size(), CV_8UC1);
 
 	if (CheckMode == 1)
 	{
-		std::cout << "Mode: å»é™¤å°åŒºåŸŸ. ";
+		std::cout << "Mode: È¥³ıĞ¡ÇøÓò. ";
 		for (int i = 0; i < Src.rows; ++i)
 		{
 			uchar* iData = Src.ptr<uchar>(i);
@@ -240,7 +248,7 @@ void RemoveSmallRegion(Mat& Src, Mat& Dst, int AreaLimit, int CheckMode, int Nei
 	}
 	else
 	{
-		std::cout << "Mode: å»é™¤å­”æ´. ";
+		std::cout << "Mode: È¥³ı¿×¶´. ";
 		for (int i = 0; i < Src.rows; ++i)
 		{
 			uchar* iData = Src.ptr<uchar>(i);
@@ -255,23 +263,23 @@ void RemoveSmallRegion(Mat& Src, Mat& Dst, int AreaLimit, int CheckMode, int Nei
 		}
 	}
 
-	std::vector<Point2i> NeihborPos;  //è®°å½•é‚»åŸŸç‚¹ä½ç½®  
+	std::vector<Point2i> NeihborPos;  //¼ÇÂ¼ÁÚÓòµãÎ»ÖÃ  
 	NeihborPos.push_back(Point2i(-1, 0));
 	NeihborPos.push_back(Point2i(1, 0));
 	NeihborPos.push_back(Point2i(0, -1));
 	NeihborPos.push_back(Point2i(0, 1));
 	if (NeihborMode == 1)
 	{
-		std::cout << "Neighbor mode: 8é‚»åŸŸ." << std::endl;
+		std::cout << "Neighbor mode: 8ÁÚÓò." << std::endl;
 		NeihborPos.push_back(Point2i(-1, -1));
 		NeihborPos.push_back(Point2i(-1, 1));
 		NeihborPos.push_back(Point2i(1, -1));
 		NeihborPos.push_back(Point2i(1, 1));
 	}
-	else std::cout << "Neighbor mode: 4é‚»åŸŸ." << std::endl;
+	else std::cout << "Neighbor mode: 4ÁÚÓò." << std::endl;
 	int NeihborCount = 4 + 4 * NeihborMode;
 	int CurrX = 0, CurrY = 0;
-	//å¼€å§‹æ£€æµ‹  
+	//¿ªÊ¼¼ì²â  
 	for (int i = 0; i < Src.rows; ++i)
 	{
 		uchar* iLabel = Pointlabel.ptr<uchar>(i);
@@ -279,38 +287,38 @@ void RemoveSmallRegion(Mat& Src, Mat& Dst, int AreaLimit, int CheckMode, int Nei
 		{
 			if (iLabel[j] == 0)
 			{
-				//********å¼€å§‹è¯¥ç‚¹å¤„çš„æ£€æŸ¥**********  
-				std::vector<cv::Point2i> GrowBuffer;                                      //å †æ ˆï¼Œç”¨äºå­˜å‚¨ç”Ÿé•¿ç‚¹  
+				//********¿ªÊ¼¸Ãµã´¦µÄ¼ì²é**********  
+				std::vector<cv::Point2i> GrowBuffer;                                      //¶ÑÕ»£¬ÓÃÓÚ´æ´¢Éú³¤µã  
 				GrowBuffer.push_back(cv::Point2i(j, i));
 				Pointlabel.at<uchar>(i, j) = 1;
-				int CheckResult = 0;                                               //ç”¨äºåˆ¤æ–­ç»“æœï¼ˆæ˜¯å¦è¶…å‡ºå¤§å°ï¼‰ï¼Œ0ä¸ºæœªè¶…å‡ºï¼Œ1ä¸ºè¶…å‡º  
+				int CheckResult = 0;                                               //ÓÃÓÚÅĞ¶Ï½á¹û£¨ÊÇ·ñ³¬³ö´óĞ¡£©£¬0ÎªÎ´³¬³ö£¬1Îª³¬³ö  
 
 				for (int z = 0; z < GrowBuffer.size(); z++)
 				{
 
-					for (int q = 0; q < NeihborCount; q++)                                      //æ£€æŸ¥å››ä¸ªé‚»åŸŸç‚¹  
+					for (int q = 0; q < NeihborCount; q++)                                      //¼ì²éËÄ¸öÁÚÓòµã  
 					{
 						CurrX = GrowBuffer.at(z).x + NeihborPos.at(q).x;
 						CurrY = GrowBuffer.at(z).y + NeihborPos.at(q).y;
-						if (CurrX >= 0 && CurrX < Src.cols && CurrY >= 0 && CurrY < Src.rows)  //é˜²æ­¢è¶Šç•Œ  
+						if (CurrX >= 0 && CurrX < Src.cols && CurrY >= 0 && CurrY < Src.rows)  //·ÀÖ¹Ô½½ç  
 						{
 							if (Pointlabel.at<uchar>(CurrY, CurrX) == 0)
 							{
-								GrowBuffer.push_back(Point2i(CurrX, CurrY));  //é‚»åŸŸç‚¹åŠ å…¥buffer  
-								Pointlabel.at<uchar>(CurrY, CurrX) = 1;           //æ›´æ–°é‚»åŸŸç‚¹çš„æ£€æŸ¥æ ‡ç­¾ï¼Œé¿å…é‡å¤æ£€æŸ¥  
+								GrowBuffer.push_back(Point2i(CurrX, CurrY));  //ÁÚÓòµã¼ÓÈëbuffer  
+								Pointlabel.at<uchar>(CurrY, CurrX) = 1;           //¸üĞÂÁÚÓòµãµÄ¼ì²é±êÇ©£¬±ÜÃâÖØ¸´¼ì²é  
 							}
 						}
 					}
 				}
-				if (GrowBuffer.size() > AreaLimit) CheckResult = 2;                 //åˆ¤æ–­ç»“æœï¼ˆæ˜¯å¦è¶…å‡ºé™å®šçš„å¤§å°ï¼‰ï¼Œ1ä¸ºæœªè¶…å‡ºï¼Œ2ä¸ºè¶…å‡º  
+				if (GrowBuffer.size() > AreaLimit) CheckResult = 2;                 //ÅĞ¶Ï½á¹û£¨ÊÇ·ñ³¬³öÏŞ¶¨µÄ´óĞ¡£©£¬1ÎªÎ´³¬³ö£¬2Îª³¬³ö  
 				else { CheckResult = 1;   RemoveCount++; }
-				for (int z = 0; z < GrowBuffer.size(); z++)                         //æ›´æ–°Labelè®°å½•  
+				for (int z = 0; z < GrowBuffer.size(); z++)                         //¸üĞÂLabel¼ÇÂ¼  
 				{
 					CurrX = GrowBuffer.at(z).x;
 					CurrY = GrowBuffer.at(z).y;
 					Pointlabel.at<uchar>(CurrY, CurrX) += CheckResult;
 				}
-				//********ç»“æŸè¯¥ç‚¹å¤„çš„æ£€æŸ¥**********  
+				//********½áÊø¸Ãµã´¦µÄ¼ì²é**********  
 
 
 			}
@@ -318,7 +326,7 @@ void RemoveSmallRegion(Mat& Src, Mat& Dst, int AreaLimit, int CheckMode, int Nei
 	}
 
 	CheckMode = 255 * (1 - CheckMode);
-	//å¼€å§‹åè½¬é¢ç§¯è¿‡å°çš„åŒºåŸŸ  
+	//¿ªÊ¼·´×ªÃæ»ı¹ıĞ¡µÄÇøÓò  
 	for (int i = 0; i < Src.rows; ++i)
 	{
 		uchar* iData = Src.ptr<uchar>(i);
@@ -340,7 +348,7 @@ void RemoveSmallRegion(Mat& Src, Mat& Dst, int AreaLimit, int CheckMode, int Nei
 	std::cout << RemoveCount << " objects removed." << std::endl;
 }
 
-//å‡å€¼æ»¤æ³¢
+//¾ùÖµÂË²¨
 Mat myAverage(Mat& srcImage)
 {
 	
@@ -382,10 +390,10 @@ void removePepperNoise(Mat& mask)
 		while (x < mask.cols - 2)
 		{
 			uchar v = *pThis;
-			// å½“å‰ç‚¹ä¸ºé»‘è‰²
+			// µ±Ç°µãÎªºÚÉ«
 			if (v == 0)
 			{
-				// 5 * 5 é‚»åŸŸçš„å¤–å±‚
+				// 5 * 5 ÁÚÓòµÄÍâ²ã
 				bool allAbove = *(pUp2 - 2) && *(pUp2 - 1) && *(pUp2) && *(pUp2 + 1) && *(pUp2 + 2);
 				bool allBelow = *(pDown2 - 2) && *(pDown2 - 1) && *(pDown2) && *(pDown2 + 1) && *(pDown2 + 2);
 				bool allLeft = *(pUp1 - 2) && *(pThis - 2) && *(pDown1 - 2);
@@ -394,12 +402,12 @@ void removePepperNoise(Mat& mask)
 
 				if (surroundings)
 				{
-					// 5*5 é‚»åŸŸçš„å†…å±‚ï¼ˆ3*3çš„å°é‚»åŸŸï¼‰
+					// 5*5 ÁÚÓòµÄÄÚ²ã£¨3*3µÄĞ¡ÁÚÓò£©
 					*(pUp1 - 1) = *(pUp1) = *(pUp1 + 1) = 255;
 					*(pThis - 1) = *pThis = *(pThis + 1) = 255;
 					*(pDown1 - 1) = *pDown1 = *(pDown1 + 1) = 255;
 					//(*pThis) = ~(*pThis);
-											// 0 â‡’ 255
+											// 0 ? 255
 				}
 				pUp2 += 2; pUp1 += 2; pThis += 2; pDown1 += 2; pDown2 += 2;
 				x += 2;
@@ -412,15 +420,27 @@ void removePepperNoise(Mat& mask)
 
 int main()
 {
-	// å¼€ä¸€ä¸ªæ–‡ä»¶ï¼Œå°†yolov5è¯†åˆ«çš„ç»“æœå†™å…¥
+
+	//ÊµÑéÍ¼Æ¬ÏàËÆ¶ÈµÄËã·¨
+
+	/*ImageAnalysis imagean;
+	cv::Mat imgsim, imgsim1;
+	imgsim = cv::imread("../data/1.png");
+	imgsim1 = cv::imread("../data/2.png");
+	bool moved = imagean.BemovedOut(imgsim, imgsim1,0,0);*/
+
+	// ¿ªÒ»¸öÎÄ¼ş£¬½«yolov5Ê¶±ğµÄ½á¹ûĞ´Èë
 #if yolov5
 
 	std::ofstream outfile("../results/yolov5.txt");
 
 #else
-	std::ifstream infile("../results/yolov5_out.txt");
+	std::ifstream infile("../results/yolov5_xuewei_960_720.txt");
 	std::vector< std::vector<BoundingBox> > yolov5_detections;
-	read_detections(infile, yolov5_detections);
+	// ĞŞ¸Ä¶ÁÈ¡¿òÍ¼±¶ÂÊµÚÈı¸ö²ÎÊı
+
+	int scalefactor = 960/RESIZE_WIDTH;
+	read_detections(infile, yolov5_detections,scalefactor);
 
 #endif
 	int i, j, k;
@@ -428,15 +448,16 @@ int main()
 
 
 	// Declare matrices to store original and resultant binary image
-	cv::Mat orig_img, bin_img;
+	cv::Mat orig_img,drawingorig, bin_img;
+	cv::Mat signalDraw(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC3);
 	
 	//Declare a VideoCapture object to store incoming frame and initialize it
-	cv::VideoCapture capture("../data/out.mp4");
+	cv::VideoCapture capture("../data/out_xuewei.mp4");
 	
 	capture.read(orig_img);
 	//orig_img = cv::imread("../data/back1.jpg");
 	
-	cv::resize(orig_img, orig_img, cv::Size(960, 720));
+	cv::resize(orig_img, orig_img, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
 	cv::cvtColor(orig_img, orig_img, cv::COLOR_BGR2YCrCb);
 	//cv::GaussianBlur(orig_img, orig_img, cv::Size(3,3), 3.0);
 
@@ -506,35 +527,30 @@ int main()
 	unsigned int count4tracker = 0;
 
 
-	// æ€»å¸§ç‡çš„æ¢æµ‹ç»“æœ
+	// ×ÜÖ¡ÂÊµÄÌ½²â½á¹û
 	std::vector< std::vector<BoundingBox>> vv_detections;
 	
 
-	// æ€»å¸§çš„è¿½è¸ªç»“æœ
+	// ×ÜÖ¡µÄ×·×Ù½á¹û
 	std::vector< Track > iou_tracks;
-	float stationary_threshold = 0.90;		// low detection threshold,ä¿®æ”¹ä¸€ä¸‹ï¼Œè¿™é‡Œæ”¹æˆå¤§äºè¿™ä¸ªçš„æ˜¯é™æ€ç‰©ä½“
+	int splitID=1;
+
+	vector<xueweiImage::SplitObject> SplitObjForSure;
+
+	xueweiImage::ImageAnalysis Analysis;
+
+
+	float stationary_threshold = 0.90;		// low detection threshold,ĞŞ¸ÄÒ»ÏÂ£¬ÕâÀï¸Ä³É´óÓÚÕâ¸öµÄÊÇ¾²Ì¬ÎïÌå
 	float lazy_threshold = 0.70;
-	float sigma_h = 0.7;		// high detection threshold,ä¼˜é€‰detectionï¼Œæ£€æµ‹çš„å¾—åˆ†ï¼Œå…¶å®è¿™é‡Œé¢æ²¡æœ‰ä½œç”¨ï¼Œä¸æ˜¯é€šè¿‡classifyçš„æ¥çš„
+	float sigma_h = 0.7;		// high detection threshold,ÓÅÑ¡detection£¬¼ì²âµÄµÃ·Ö£¬ÆäÊµÕâÀïÃæÃ»ÓĞ×÷ÓÃ£¬²»ÊÇÍ¨¹ıclassifyµÄÀ´µÄ
 	float sigma_iou = 0.2;	// IOU threshold
 	float t_min = 3;		// minimum track length in frames
 
 	std::cout<<"fps: "<<capture.get(cv::CAP_PROP_FPS)<<std::endl;
 	
-	// check if gpu flag is set
-	bool is_gpu = false;
-
-	// set device type - CPU/GPU
-/* 
-	torch::DeviceType device_type;
-	if (torch::cuda::is_available() && is_gpu) {
-		device_type = torch::kCUDA;
-	}
-	else {
-		device_type = torch::kCPU;
-	} */
 
 #if yolov5
-	// ä»¥ä¸‹æ˜¯è¿è¡Œæ·±åº¦ç½‘ç»œyolov5
+	// ÒÔÏÂÊÇÔËĞĞÉî¶ÈÍøÂçyolov5
 	// load class names from dataset for visualization
 	std::vector<std::string> class_names = LoadNames("../weights/coco.names");
 	if (class_names.empty()) {
@@ -557,9 +573,10 @@ int main()
 
 	while (1)
 	{
+		duration3 = static_cast<double>(cv::getTickCount());
 		std::vector<BoundingBox> v_bbnd;
 		v_bbnd.clear();
-		duration3 = 0.0;
+		
 		if (!capture.read(orig_img)) {
 			break;
 			capture.release();
@@ -569,11 +586,15 @@ int main()
 		}
 		else
 		{
-			cv::resize(orig_img, orig_img, cv::Size(960, 720));
+			cv::resize(orig_img, orig_img, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
 		}
 		//break;
 		int count = 0;
 		int count1 = 0;
+
+		iou_tracks.clear();
+
+		orig_img.copyTo(drawingorig);
 
 
 		N_ptr = N_start;
@@ -581,7 +602,7 @@ int main()
 		for (i = 0; i < nL; i++)
 		{
 			r_ptr = orig_img.ptr(i);
-			// äºŒå€¼åŒ–çš„å›¾çš„æ¯ä¸ªåƒç´ ç‚¹çš„åœ°å€æŒ‡é’ˆ
+			// ¶şÖµ»¯µÄÍ¼µÄÃ¿¸öÏñËØµãµÄµØÖ·Ö¸Õë
 			b_ptr = bin_img.ptr(i);
 
 			for (j = 0; j < nC; j += 3)
@@ -632,7 +653,7 @@ int main()
 						mal_dist = (dR * dR + dG * dG + dB * dB);
 
 						if ((sum < cfbar) && (mal_dist < 16.0 * var * var))
-							// å°†èƒŒæ™¯é«˜äº® 
+							// ½«±³¾°¸ßÁÁ 
 							background = 255;
 
 						if (mal_dist < 9.0 * var * var)
@@ -710,17 +731,17 @@ int main()
 					else
 					{
 						//count++;
-						next = temp_ptr->Next;
+						gnext = temp_ptr->Next;
 						previous = temp_ptr->Previous;
 						if (start == previous)
 							start = temp_ptr;
-						previous->Next = next;
+						previous->Next = gnext;
 						temp_ptr->Previous = previous->Previous;
 						temp_ptr->Next = previous;
 						if (previous->Previous != NULL)
 							previous->Previous->Next = temp_ptr;
-						if (next != NULL)
-							next->Previous = previous;
+						if (gnext != NULL)
+							gnext->Previous = previous;
 						else
 							rear = previous;
 						previous->Previous = temp_ptr;
@@ -743,34 +764,41 @@ int main()
 			}
 		}
 
+		imshow("before xingtai", bin_img);
+		waitKey(5);
+
 
 		// xuewei add some Morphology relevant processing
 	
 		//step one, filter tiny points
 		//RemoveSmallRegion(bin_img, bin_img, 20, 0, 0);	
 		
-		// æœ‰æ•ˆéªŒè¯ä¸­å€¼æ»¤æ³¢å’Œé—­æ“ä½œæ€§ä»·æ¯”æœ€é«˜ï¼Œä¹Ÿæ•ˆæœè¾ƒå¥½ã€‚
-		// ä¸­å€¼æ»¤æ³¢
+		// ÓĞĞ§ÑéÖ¤ÖĞÖµÂË²¨ºÍ±Õ²Ù×÷ĞÔ¼Û±È×î¸ß£¬Ò²Ğ§¹û½ÏºÃ¡£
+		// ÖĞÖµÂË²¨
 		//cv::medianBlur(bin_img, bin_img, 3);
 
-		// é—­æ“ä½œå‘¢
+		// ±Õ²Ù×÷ÄØ
 		cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3), cv::Point(-1, -1));
 		cv::morphologyEx(bin_img, bin_img, CV_MOP_CLOSE, kernel);
 
 		
 		
 
-		// æ±‚å¾—è½®å»“
+		// ÇóµÃÂÖÀª
 		std::vector<std::vector<cv::Point>> contours;
 		std::vector<cv::Vec4i> hierarcy;
 		
-		// å–åè‰²ï¼Œè¿™æ ·èƒ½ä¸‹ä¸€æ­¥æ‰¾åˆ°å¤–è½®å»“
+		// È¡·´É«£¬ÕâÑùÄÜÏÂÒ»²½ÕÒµ½ÍâÂÖÀª
 		cv::bitwise_not(bin_img, bin_img);
 
 
-		// å†æ“ä½œä¸€æŠŠè†¨èƒ€æ“ä½œï¼Œå°†è½¦å†…çš„ç©ºæ¡£è¿é€šèµ·æ¥,ä¸è¦æåäº†ï¼Œè†¨èƒ€å°±æ˜¯å¯¹å›¾åƒçš„é«˜äº®éƒ¨åˆ†è¿›è¡Œè†¨èƒ€ã€‚
+		// ÔÙ²Ù×÷Ò»°ÑÅòÕÍ²Ù×÷£¬½«³µÄÚµÄ¿ÕµµÁ¬Í¨ÆğÀ´,²»Òª¸ã·´ÁË£¬ÅòÕÍ¾ÍÊÇ¶ÔÍ¼ÏñµÄ¸ßÁÁ²¿·Ö½øĞĞÅòÕÍ¡£
 		cv::Mat dilatekernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(7, 7));
 		cv::dilate(bin_img, bin_img, dilatekernel, Point(-1, -1), 1, 0);
+
+		cv::namedWindow("after xingtai", WINDOW_NORMAL);
+		imshow("after xingtai", bin_img);
+		waitKey(5);
 
 		cv::findContours(bin_img, contours, hierarcy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
 		std::vector<RotatedRect> box(contours.size());
@@ -780,8 +808,6 @@ int main()
 		Point2f m_rect[4];
 
 		
-		
-		
 		BoundingBox m_BBtemp;
 		memset(&m_BBtemp, 0, sizeof(BoundingBox));
 		
@@ -789,11 +815,11 @@ int main()
 		std::vector<BoundingBox> yolov5_currentobj;
 		
 #if yolov5
-		// å…ˆæä¸€æ­¥éª¤æ·±åº¦ç½‘ç»œæ£€æµ‹
+		// ÏÈ¸ãÒ»²½ÖèÉî¶ÈÍøÂç¼ì²â
 		auto result = detector.Run(orig_img, conf_thres, iou_thres);
 
 
-		// å°†yolov5çš„ç»“æœå†™å…¥txt
+		// ½«yolov5µÄ½á¹ûĞ´Èëtxt
 		bool ret = write2file(outfile, count4tracker, result);
 		if (1) {
 			Demo(orig_img, result, class_names,false);
@@ -811,34 +837,34 @@ int main()
 		}
 #endif
 
-		//  è¯»å–å½“å‰çš„æ·±åº¦ç½‘ç»œæ¢æµ‹ç»“æœ
+		//  ¶ÁÈ¡µ±Ç°µÄÉî¶ÈÍøÂçÌ½²â½á¹û
 		std::vector<BoundingBox>::iterator iters_b = yolov5_currentobj.begin();
 		std::vector<BoundingBox>::iterator iter_e = yolov5_currentobj.end();
 		std::cout << "begin to draw yolov5 detections'results!!" << std::endl;
 		for (; iters_b != iter_e; iters_b++)
 		{
-			rectangle(orig_img,
+			rectangle(drawingorig,
 				Point((int)iters_b->x,
 					(int)iters_b->y),
-				Point((int)iters_b->x + (int)iters_b->w,
-					(int)iters_b->y + (int)iters_b->h),
+				Point((int)iters_b->x + (int)iters_b->width,
+					(int)iters_b->y + (int)iters_b->height),
 				Scalar(0, 0, 255),
 				2,
 				8);
 		}
 		
-		// ä»¥ä¸‹æ˜¯ç§»åŠ¨ç‰©ä½“æ£€æµ‹
+		// ÒÔÏÂÊÇÒÆ¶¯ÎïÌå¼ì²â
 		for (int i=0; i < contours.size();i++)
 		{
 			box[i] = minAreaRect(Mat(contours[i]));
 			boundRect[i] = cv::boundingRect(Mat(contours[i]));
-			if (box[i].size.width < 10 || box[i].size.height<10)
+			if (box[i].size.width < 15*RESIZE_WIDTH/960 || box[i].size.height<15*RESIZE_WIDTH/960)
 			{
 				continue;
 			}
 			else
 			{
-				//rectangle(orig_img, Point(boundRect[i].x, boundRect[i].y), Point(boundRect[i].x + boundRect[i].width, boundRect[i].y + boundRect[i].height), Scalar(0, 255, 0), 2, 8);
+				//rectangle(drawingorig, Point(boundRect[i].x, boundRect[i].y), Point(boundRect[i].x + boundRect[i].width, boundRect[i].y + boundRect[i].height), Scalar(0, 255, 0), 2, 8);
 				/*	m_BBtemp.x = boundRect[i].x;
 					m_BBtemp.y = boundRect[i].y;
 					m_BBtemp.w = boundRect[i].width;
@@ -851,14 +877,14 @@ int main()
 
 				m_BBtemp.x = m_rect[0].x;
 				m_BBtemp.y = m_rect[0].y;
-				m_BBtemp.w = m_rect[1].x - m_rect[0].x;
-				m_BBtemp.h = m_rect[2].y - m_rect[1].y;
+				m_BBtemp.width = m_rect[1].x - m_rect[0].x;
+				m_BBtemp.height = m_rect[2].y - m_rect[1].y;
 				m_BBtemp.score = 1;
 				m_BBtemp.m_status = UnkownObj;
 				v_bbnd.push_back(m_BBtemp);
 
 
-				// keep æœ€å°å¤–æ¥çŸ©å½¢
+				// keep ×îĞ¡Íâ½Ó¾ØĞÎ
 				for (int j = 0; j < 4; j++)
 				{
 					//line(orig_img, m_rect[j], m_rect[(j + 1) % 4], Scalar(0, 255, 0), 2, 8);
@@ -866,29 +892,29 @@ int main()
 			}
 		}
 
-		// åšä¸€æŠŠYoloå’ŒèƒŒæ™¯æ³•åˆå¹¶filter
-		// step one ,å…ˆåŒ¹é…éå†è¿åŠ¨ç›®æ ‡ä¸yoloçš„æ¢æµ‹
+		// ×öÒ»°ÑYoloºÍ±³¾°·¨ºÏ²¢filter
+		// step one ,ÏÈÆ¥Åä±éÀúÔË¶¯Ä¿±êÓëyoloµÄÌ½²â
 
 		char yichu[255];
 		for (int i =0; i<v_bbnd.size();i++)
 		{
 			int indexofmatch = highestIOU(v_bbnd[i], yolov5_currentobj);
-			// åˆ¤æ–­æ˜¯å¦è¿åŠ¨ç‰©ä½“ä¸yolov5 ç»“æœç²˜è¿ï¼Œå¦‚æœæ˜¯ï¼Œåˆ™ä¸è®¡å…¥æœ€ç»ˆè¿½è¸ªiou
+			// ÅĞ¶ÏÊÇ·ñÔË¶¯ÎïÌåÓëyolov5 ½á¹ûÕ³Á¬£¬Èç¹ûÊÇ£¬Ôò²»¼ÆÈë×îÖÕ×·×Ùiou
 			if (indexofmatch != -1 \
 				&& intersectionOverUnion(v_bbnd[i], yolov5_currentobj[indexofmatch]) >= 0.05)
 			{
 				v_bbnd[i].m_status = Ejected;
-				rectangle(orig_img,
+				rectangle(drawingorig,
 					Point(v_bbnd[i].x, v_bbnd[i].y),
-					Point(v_bbnd[i].x + v_bbnd[i].w,
-						v_bbnd[i].y + v_bbnd[i].h),
+					Point(v_bbnd[i].x + v_bbnd[i].width,
+						v_bbnd[i].y + v_bbnd[i].height),
 					Scalar(0, 150, 50), 2, 8);
 
 				sprintf(yichu, "Ejected");
 
-				cv::putText(orig_img, yichu,
-					cv::Point((v_bbnd[i].x + v_bbnd[i].w - v_bbnd[i].w / 2) - 30,
-						v_bbnd[i].y + v_bbnd[i].h + 10),
+				cv::putText(drawingorig, yichu,
+					cv::Point((v_bbnd[i].x + v_bbnd[i].width - v_bbnd[i].width / 2) - 30,
+						v_bbnd[i].y + v_bbnd[i].height + 10),
 					1,
 					1.2,
 					Scalar(0, 150, 50),
@@ -899,50 +925,48 @@ int main()
 			else
 			{
 				v_bbnd[i].m_status = Suspected;
-				rectangle(orig_img,
+				rectangle(drawingorig,
 					Point(v_bbnd[i].x, v_bbnd[i].y),
-					Point(v_bbnd[i].x + v_bbnd[i].w,
-						v_bbnd[i].y + v_bbnd[i].h),
+					Point(v_bbnd[i].x + v_bbnd[i].width,
+						v_bbnd[i].y + v_bbnd[i].height),
 					Scalar(0, 150, 50), 2, 8);
 
-				sprintf(yichu, "Suspected");
+				sprintf(yichu, "Split_Unsure");
 
-				cv::putText(orig_img, yichu,
-					cv::Point((v_bbnd[i].x + v_bbnd[i].w - v_bbnd[i].w / 2) - 30,
-						v_bbnd[i].y + v_bbnd[i].h + 10),
+				cv::putText(drawingorig, yichu,
+					cv::Point((v_bbnd[i].x + v_bbnd[i].width - v_bbnd[i].width / 2) - 30,
+						v_bbnd[i].y + v_bbnd[i].height + 10),
 					1,
 					1.2,
 					Scalar(150, 0, 50),
 					1.2, LINE_4);
 			}
 		}
-		// æ¯å¸§å¾ªåï¼Œå°†v_bbndæ”¾å…¥åˆ°åµŒå¥—vvä¸­ï¼›
+		// Ã¿Ö¡Ñ­»µ£¬½«v_bbnd·ÅÈëµ½Ç¶Ì×vvÖĞ£»
 		vv_detections.push_back(v_bbnd);
-		std::cout<<"vv_detection's size"<<vv_detections.size()<<std::endl;
-		// è¶…è¿‡ç´¯è®¡ä¸‰ä¸ªå¾ªåå¼€å§‹ iou track
+
+		// ³¬¹ıÀÛ¼ÆÈı¸öÑ­»µ¿ªÊ¼ iou track
 
 		if (count4tracker>3)
 		{
 			//begin to iou track
 			iou_tracks = track_iou(stationary_threshold, lazy_threshold,sigma_h, sigma_iou, t_min, vv_detections);
+			std::cout << "tracks'size" << iou_tracks.size() << std::endl;
 			//std::cout << "Last Track ID > " << iou_tracks.back().id << std::endl;
 		}
 		std::cout << "this is" << count4tracker << "frame" << std::endl;
-		if (count4tracker==253)
-		{
-			cv::imwrite("../data/save1.jpg", orig_img);
-		}
 
 		
 
 		char info[256];
-		 for (auto dt : iou_tracks)
+		for (auto &dt : iou_tracks)
 		{
 			int box_index = count4tracker - dt.start_frame;
 			if (box_index < dt.boxes.size())
 			{
 				BoundingBox b = dt.boxes[box_index];
-				cv::rectangle(orig_img, cv::Point(b.x, b.y), cv::Point(b.x + b.w, b.y + b.h), cv::Scalar(255, 0, 100), 2);
+				
+				cv::rectangle(drawingorig, cv::Point(b.x, b.y), cv::Point(b.x + b.width, b.y + b.height), cv::Scalar(255, 0, 100), 2);
 
 				std::string s_status;
 				cv::Scalar blue(255, 0, 0);
@@ -953,43 +977,161 @@ int main()
 				case Moving:
 					s_status = "Moving";
 					sprintf(info, "ID:%d_AppearingT:%d_%s", dt.id, dt.total_appearing, s_status.c_str());
-					//cv::putText(orig_img, info, cv::Point((b.x + b.w - b.w / 2) - 30, b.y + b.h - 5), 1, 1, blue, 1);
+					//cv::putText(drawingorig, info, cv::Point((b.x + b.w - b.w / 2) - 30, b.y + b.h - 5), 1, 1, blue, 1);
 					break;
 				case Stopping:
 					s_status = "Stopping";
 					sprintf(info, "ID:%d_AppearingT:%d_%s", dt.id, dt.total_appearing, s_status.c_str());
-					//cv::putText(orig_img, info, cv::Point((b.x + b.w - b.w / 2) - 30, b.y + b.h - 5), 1, 1, green, 1);
+					//cv::putText(drawingorig, info, cv::Point((b.x + b.w - b.w / 2) - 30, b.y + b.h - 5), 1, 1, green, 1);
 					break;
-				case Splittingobj:
-					s_status = "Splittingobj";
-					sprintf(info, "ID:%d_AppearingT:%d_%s", dt.id, dt.total_appearing, s_status.c_str());
-					cv::putText(orig_img, info, cv::Point((b.x + b.w - b.w / 2) - 30, b.y + b.h - 5), 1, 1, red, 1);
+				case Static_Sure:
+
+					if (b.width * b.height > pow(RESIZE_WIDTH*200/960,2))
+					{
+						break;
+					}
+
+					s_status = "SplitObj_Sure";
+					sprintf(info, "ID:%d_%s", dt.id,  s_status.c_str());
+					cv::putText(drawingorig, info, cv::Point((b.x + b.width - b.width / 2) - 30, b.y + b.height - 5), 1, 1.5, red, 1);
+					
+					xueweiImage::SplitObject tmpSplitObj;
+					tmpSplitObj.ID = splitID;
+					tmpSplitObj.m_postion.x = static_cast<int>(b.x);
+					tmpSplitObj.m_postion.y = static_cast<int>(b.y);
+					tmpSplitObj.m_postion.width = static_cast<int>(b.width);
+					tmpSplitObj.m_postion.height = static_cast<int>(b.height);
+					tmpSplitObj.moved = false;
+					tmpSplitObj.firstshowframenum = count4tracker;
+					tmpSplitObj.imgdata = orig_img(tmpSplitObj.m_postion);
+					tmpSplitObj.haschecked = false;
+					tmpSplitObj.checktimes = 1;
+					
+					char display[256];
+					// ÕâÀï»¹ÒªÈ·¶¨ÓĞÃ»ÓĞÖØ¸´ÍùÀïĞ´
+					if (!SplitObjForSure.empty())
+					{
+						// ÕâÀï×öµÄÊÇÅĞ¶ÏÊÇ·ñÓĞĞÂµÄÅ×È÷Îï½øÀ´
+						int index = Analysis.CheckHighestIOU(tmpSplitObj.m_postion, SplitObjForSure);
+						if (index != -1 \
+							&& Analysis.intersectionOU(tmpSplitObj.m_postion, SplitObjForSure[index].m_postion) >= 0.75)
+						{
+								
+						}
+						else
+						{
+							SplitObjForSure.push_back(tmpSplitObj);
+							splitID++;
+						}
+						
+					}
+					else
+					{
+						SplitObjForSure.push_back(tmpSplitObj);
+						splitID++;
+					}
+					
 					break;
 				}
 				
 			}
-			
 		}
- 
-		count4tracker++;
-		duration = static_cast<double>(cv::getTickCount()) - duration;
-		duration /= cv::getTickFrequency();
 
-		std::cout << "\n duration :" << duration;
+
+		// ÔÚÃ¿¸öÑ­»·ÍâÃæÏÔÊ¾ Å×È÷Îï
+		// ÕâÀï×öµÄÊÇĞ£ÑéÊÇ·ñÔ­µØ»¹ÓĞÅ×È÷Îï£¬Ã»ÓĞµÄ»°£¬µü´úÆ÷É¾³ı£¬Õâ¸öÓ¦¸ÃÔÚÍâÃæ×ö
+
+
+		char displayindex[256],judge[256];
+		int offset = 1; 
+		// for  destroy corresponding patch 
+		char destroypatchname[256];
+		for (vector <xueweiImage::SplitObject>::iterator iter = SplitObjForSure.begin(); iter < SplitObjForSure.end();)
+		{
+			int timeinterval = count4tracker - iter->firstshowframenum;
+			if (timeinterval > CHECK_INTERVAL && !iter->haschecked)
+			{
+				/*sprintf(judge,"judge whether the obj[%d] is moved out \n", iter->ID);*/
+				// 
+				cv::Mat currentpatchhere = orig_img(iter->m_postion);
+				bool movedout = Analysis.BemovedOut(iter->imgdata, currentpatchhere, 0);
+				iter->haschecked = true;
+				iter->checktimes++;
+				if (movedout)
+				{
+					sprintf(judge,"obj[%d] has been moved out \n", iter->ID);
+					cv::putText(drawingorig, judge, cv::Point(200, 5 + (100 * offset)), 3, 1.25, cv::Scalar(100, 0, 200));
+					offset++;
+					sprintf(destroypatchname, "patch_%d", iter->ID);
+					cv::destroyAllWindows();
+					iter = SplitObjForSure.erase(iter);
+				}
+				else
+				{
+					sprintf(judge, "obj[%d] is still there, check first times \n", iter->ID);
+					cv::putText(drawingorig, judge, cv::Point(8, 5 + (100 * offset)), 3, 1.25, cv::Scalar(100, 0, 200));
+					offset++;
+					iter->moved = false;
+					iter++;
+				}
+			}
+			else if (iter->haschecked && timeinterval>(CHECK_INTERVAL*iter->checktimes))
+			{
+				cv::Mat currentpatchhere = orig_img(iter->m_postion);
+				bool movedout = Analysis.BemovedOut(iter->imgdata, currentpatchhere, 0);
+				iter->checktimes++;
+				if (movedout)
+				{
+					sprintf(judge,"obj[%d] has been moved out \n", iter->ID);
+					cv::putText(drawingorig, judge, cv::Point(8, 5 + (100 * offset)), 3, 1.25, cv::Scalar(0, 0, 255));
+					offset++;
+					sprintf(destroypatchname, "patch_%d", iter->ID);
+					cv::destroyAllWindows();
+					iter = SplitObjForSure.erase(iter);
+				}
+				else
+				{
+					sprintf(judge, "obj[%d] is still there, check[%d] times \n", iter->ID,iter->checktimes);
+					cv::putText(drawingorig, judge, cv::Point(8, 5 + (100 * offset)), 3, 1.25, cv::Scalar(0, 0, 255));
+					iter->moved = false;
+					iter++;
+				}
+			}
+			else
+			{
+				if (CHECK_INTERVAL>timeinterval)
+				{
+					sprintf(judge, "ID_%d_%d_fleft",iter->ID, CHECK_INTERVAL - timeinterval);
+				}
+				else
+				{
+					if (!iter->haschecked)
+					{
+						sprintf(judge, "ID_%d to check now", iter->ID);
+					}
+				}
+				cv::putText(drawingorig,judge,cv::Point(8,5+(100*offset)),3,1.25,cv::Scalar(0,0,255));
+				offset++;
+				sprintf(displayindex, "patch_%d ", iter->ID);
+				cv::namedWindow(displayindex, WINDOW_NORMAL);
+				cv::imshow(displayindex, iter->imgdata);
+				cv::waitKey(5);
+				iter++;
+			}
+		}
+
+		count4tracker++;
+		duration = static_cast<double>(cv::getTickCount()) - duration3;
+		duration /= cv::getTickFrequency();
+		std::cout << "\n per frame duration :" << duration;
 		std::cout << "\n counts : " << count;
-		cv::namedWindow("orig", CV_WINDOW_NORMAL);
-		//cv::namedWindow("gp", CV_WINDOW_NORMAL);
-		cv::imshow("orig", orig_img);
-		//cv::imshow("gp", bin_img);
-	
-		
+		cv::namedWindow("orig", WINDOW_NORMAL);
+		cv::imshow("orig", drawingorig);
 		cv::waitKey(5);
 	}
 
-	duration1 = static_cast<double>(cv::getTickCount()) - duration1;
-	duration1 /= cv::getTickFrequency();
 
-	std::cout << "\n duration1 :" << duration1;
+	
 
 #if yolov5
 	outfile.close();
@@ -998,4 +1140,320 @@ int main()
 	system("PAUSE");
 	return 0;
 	//_getch();
+}
+
+
+int main_01()
+{
+	cv::Mat background = imread("../data/back.jpg");
+	cv::Mat object = imread("../data/object.jpg");
+
+	// ×¼±¸ÊÂÏÈ×¼±¸µÄÌ½²â½á¹û
+
+	std::ifstream infile("../results/yolov5_out.txt");
+	std::vector< std::vector<BoundingBox> > yolov5_detections;
+	read_detections(infile, yolov5_detections,3);
+
+
+	cv::resize(background, background, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
+	// ÕâÀïÊ¹ÓÃcopyto ËÙÂÊ¸ü¿ì£¬±ÈcloneºÃ
+	cv::Mat drawimg(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC3);
+	background.copyTo(drawimg);
+
+	
+	// »­³öroiÇøÓò,960x720µÄÇøÓò£¬µÈ±ÈÀı±ä³É 320x300
+	double factorx = (double)RESIZE_WIDTH/960.0;
+	double factory = (double)RESIZE_HEIGHT/720.0;
+	
+	
+
+	cv::line(drawimg, cv::Point(424*factorx, 264*factory), cv::Point(524 * factorx, 264 * factory), cv::Scalar(0, 255, 0), 2, 0);
+	cv::line(drawimg, cv::Point(424 * factorx, 264 * factory), cv::Point(331 * factorx, 474 * factory), cv::Scalar(0, 255, 0), 2, 0);
+	cv::line(drawimg, cv::Point(524 * factorx, 264 * factory), cv::Point(764 * factorx, 474 * factory), cv::Scalar(0, 255, 0), 2, 0);
+	cv::line(drawimg, cv::Point(331 * factorx, 474 * factory), cv::Point(2 * factorx, 474 * factory), cv::Scalar(0, 255, 0), 2, 0);
+	cv::line(drawimg, cv::Point(764 * factorx, 474 * factory), cv::Point(958 * factorx, 474 * factory), cv::Scalar(0, 255, 0), 2, 0);
+	cv::line(drawimg, cv::Point(2 * factorx, 474 * factory), cv::Point(2 * factorx, 718 * factory), cv::Scalar(0, 255, 0), 2, 0);
+	cv::line(drawimg, cv::Point(958 * factorx, 474 * factory), cv::Point(958 * factorx, 718 * factory), cv::Scalar(0, 255, 0), 2, 0);
+	cv::line(drawimg, cv::Point(2 * factorx, 718 * factory), cv::Point(958 * factorx, 718 * factory), cv::Scalar(0, 255, 0), 2, 0);
+
+	// ÉèÖÃµ¥Í¨µÀµÄÑÚÂë
+
+	double duration, duration1,duration2;
+
+	Mat mask = cv::Mat::zeros(drawimg.size(), CV_8UC1);
+
+	Point p1(424*factorx, 264*factory); 
+	Point p2(524*factorx, 264*factory);
+	Point p8(331*factorx, 474 * factory); 
+	Point p3(764 * factorx, 474 * factory);
+	Point p7(2 * factorx, 474 * factory);  
+	Point p4(958 * factorx, 474 * factory);
+	Point p6(2 * factorx, 718 * factory); 
+	Point p5(958 * factorx, 718 * factory);
+	std::vector<Point> contour;
+	contour.push_back(p1);
+	contour.push_back(p2);
+	contour.push_back(p3);
+	contour.push_back(p4);
+	contour.push_back(p5);
+	contour.push_back(p6);
+	contour.push_back(p7);
+	contour.push_back(p8);
+
+
+
+
+	std::vector<std::vector<Point> > contours;
+	contours.push_back(contour);
+	cv::drawContours(mask, contours, -1, cv::Scalar::all(255), CV_FILLED);
+	cv::Mat backgroundroi(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC1);
+	
+	// copyto Ö»»¨·Ñ 0.0003s,¿ÉÒÔÊ¹ÓÃ
+	background.copyTo(backgroundroi, mask);
+	
+	cv::VideoCapture capture("../data/out.mp4");
+
+
+	// Anomaly Àà³õÊ¼»¯
+	
+	Anomaly m_test(backgroundroi);
+
+	//cv::Point p11(495, 404);
+
+	std::vector<std::vector<cv::Rect>> cadidatesall(10);
+	
+
+	float stationary_threshold = 0.6;		// low detection threshold,ĞŞ¸ÄÒ»ÏÂ£¬ÕâÀï¸Ä³É´óÓÚÕâ¸öµÄÊÇ¾²Ì¬ÎïÌå
+	float vanish_threshold = 0.2;
+	float t_min = 3;
+
+	int framenum = 0;
+	while (1)
+	{
+		std::vector< LeftObjects > small_track;
+		small_track.clear();
+		duration = static_cast<double>(cv::getTickCount());
+		std::vector<BoundingBox> yolov5obj;
+		yolov5obj.clear();
+
+		std::vector<cv::Rect> cadidates;
+		cadidates.clear();
+		if (framenum < yolov5_detections.size())
+		{
+			yolov5obj = yolov5_detections[framenum];
+		}
+		else
+		{
+			printf("it is not possible!, and yolov5 detections frames are less than videos!");
+			return -1;
+		}
+
+
+		cv::Mat frames;
+		cv::Mat frameroi(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC1);
+		cv::Mat cleanframe(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC1);
+
+		// ´æ´¢¿ÉÄÜµÄÄ¿±ê£¬µ¥Ö¡
+		
+		if (!capture.read(frames)) {
+			break;
+			capture.release();
+			capture = cv::VideoCapture("../data/out.mp4");
+			//capture = cv::VideoCapture("../data/test.avi");
+			capture.read(frames);
+		}
+		else
+		{
+			cv::resize(frames, frames, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
+		}
+		/*duration2 = static_cast<double>(cv::getTickCount()) - duration;
+		duration2 /= cv::getTickFrequency();
+		std::cout << "\n capture and resize per frame takes \t :" << duration2 << "\t" << "s" << std::endl;*/
+		// Ã¿Ò»Ö¡×öÒ»´Îroi ÌáÈ¡
+		frames.copyTo(frameroi, mask);
+		frames.copyTo(cleanframe, mask);
+
+		double time1 = static_cast<double>(cv::getTickCount());
+		duration1 = static_cast<double>(cv::getTickCount())-duration;
+		double consumption  = duration1/ cv::getTickFrequency();
+
+		std::cout << "time consumption duration1:\t" << consumption << std::endl;
+
+		// ¸ã³öÀ´yolov5µÄÌ½²â½á¹û, ×¢Òâ£º frameroiÖ»ÊÇÓÃÀ´Ãè»­³öÀ´¿´µÄ
+		std::vector<BoundingBox>::iterator iters_b = yolov5obj.begin();
+		std::vector<BoundingBox>::iterator iter_e = yolov5obj.end();
+		std::vector<cv::Point> yolov5Points;
+		char insidezifu[256];
+		bool updateback = true;
+		int iternum = 0;
+		for (; iters_b != iter_e; iters_b++)
+		{
+			yolov5Points.clear();
+			iternum++;
+			cv::Point zuoshang, youxia;
+			zuoshang.x = (int)iters_b->x;
+			zuoshang.y = (int)iters_b->y;
+			youxia.x = (int)iters_b->x + (int)iters_b->width;
+			youxia.y = (int)iters_b->y + (int)iters_b->height;
+
+			cv::Point topleft, topright, bottomleft, bottomright;
+			topleft.x = (int)iters_b->x;
+			topleft.y = (int)iters_b->y;
+			topright.x = (int)iters_b->x + (int)iters_b->width;
+			topright.y = (int)iters_b->y;
+			bottomleft.x = (int)iters_b->x;
+			bottomleft.y = (int)iters_b->y + (int)iters_b->height;
+			bottomright.x = (int)iters_b->x + (int)iters_b->width;
+			bottomright.y = (int)iters_b->y + (int)iters_b->height;
+
+			yolov5Points.push_back(topleft);
+			yolov5Points.push_back(topright);
+			yolov5Points.push_back(bottomright);
+			yolov5Points.push_back(bottomleft);
+
+			double ticks = static_cast<double>(cv::getTickCount());
+			bool insideornot = m_test.PointsinRegion(yolov5Points, contour);
+			double ticks1 = static_cast<double>(cv::getTickCount()) - ticks;
+			ticks1 /= cv::getTickFrequency();
+			//	std::cout << "per Pointregion takes:\t" << ticks1 << std::endl;
+			sprintf(insidezifu, "%s", insideornot ? "In" : "Out");
+			if (insideornot)
+			{
+
+#if debug
+				rectangle(frameroi,
+					Point((int)iters_b->x,
+						(int)iters_b->y),
+					Point((int)iters_b->x + (int)iters_b->w,
+						(int)iters_b->y + (int)iters_b->h),
+					Scalar(0, 0, 255),
+					2,
+					8);
+				cv::putText(frameroi,
+					insidezifu,
+					cv::Point(zuoshang.x - 20, zuoshang.y - 12),
+					1,
+					1.5,
+					cv::Scalar(0, 0, 255),
+					2);
+#endif		
+				updateback = false;
+			}
+			else
+			{
+
+#if debug
+				rectangle(frameroi,
+					Point((int)iters_b->x,
+						(int)iters_b->y),
+					Point((int)iters_b->x + (int)iters_b->w,
+						(int)iters_b->y + (int)iters_b->h),
+					Scalar(255, 0, 0),
+					2,
+					8);
+				cv::putText(frameroi,
+					insidezifu,
+					cv::Point(zuoshang.x - 20, zuoshang.y - 12),
+					1,
+					1.5,
+					cv::Scalar(255, 0, 0),
+					2);
+#endif
+				
+			}
+
+		}
+		double time2 = static_cast<double>(cv::getTickCount());
+		duration2 = static_cast<double>(cv::getTickCount()) - time1;
+		double consumption1 = duration2 / cv::getTickFrequency();
+		std::cout << "time consumption duration2:\t" << consumption1 << std::endl;
+
+
+		// Õâ¸öÊÇdebugÊ¹ÓÃµÄ£¬ÕıÊ½°æ±¾ÒªÈ¥³ı
+#if debug
+		imshow("Debugframe", frameroi);
+		waitKey(3);
+#endif
+		// ×¢Òâ£º frameroiÖ»ÊÇÓÃÀ´Ãè»­³öÀ´¿´µÄ
+		m_test.UpdateBack(cleanframe, updateback);
+		// ×öÖ¡²îÏÔÊ¾,×¢Òâ£º frameroiÖ»ÊÇÓÃÀ´Ãè»­³öÀ´¿´µÄ
+
+		double zhenctime = static_cast<double>(cv::getTickCount());
+
+		if (framenum%25==0)
+		{
+			m_test.FindDiff(cleanframe, yolov5obj, cadidates);
+			if (!cadidates.empty())
+			{
+				cadidatesall.push_back(cadidates);
+			}
+			else
+			{
+				cadidatesall.clear();
+			}
+		}
+
+		// ±£Áô×îĞÂµÄ8¸ö£¬Ôİ¶¨
+		if (cadidatesall.size()>12)
+		{
+			auto iter = cadidatesall.erase(cadidatesall.begin(), cadidatesall.end() - 8);
+		}
+
+		small_track = smalltrack(stationary_threshold, vanish_threshold, t_min, cadidatesall);
+
+		char info[256];
+		for (auto dt : small_track)
+		{
+				
+				cv::Rect b = dt.m_box.back();
+				
+				std::string s_status;
+				cv::Scalar blue(255, 0, 0);
+				cv::Scalar red(0, 0, 255);
+				cv::Scalar green(0, 255, 0);
+				switch (dt.status)
+				{
+				case Suspected:
+					s_status = "Suspected";
+					cv::rectangle(cleanframe, cv::Point(b.x, b.y), cv::Point(b.x + b.width, b.y + b.height), blue, 2);
+					sprintf(info, "ID:%d_Ap:%d_%s", dt.m_ID, dt.count, s_status.c_str());
+					cv::putText(cleanframe, info, cv::Point((b.x + b.width - b.width / 2) - 30, b.y + b.height - 5), 1, 1, blue, 1);
+					break;
+				case Static_Sure:
+					s_status = "Static";
+					cv::rectangle(cleanframe, cv::Point(b.x, b.y), cv::Point(b.x + b.width, b.y + b.height), red, 2);
+					sprintf(info, "ID:%d_Ap:%d_%s", dt.m_ID, dt.count, s_status.c_str());
+					cv::putText(cleanframe, info, cv::Point((b.x + b.width - b.width / 2) - 30, b.y + b.height - 5), 1, 1, red, 1);
+					break;
+				}
+		}
+
+
+
+		double zhenctime1 = static_cast<double>(cv::getTickCount()) - zhenctime;
+		double zhenctimeconsumption = zhenctime1 / cv::getTickFrequency();
+		std::cout << "zhencha time consumption:\t" << zhenctimeconsumption << std::endl;
+
+
+		duration2 = static_cast<double>(cv::getTickCount()) - time2;
+		double consumption2 = duration2 / cv::getTickFrequency();
+
+		std::cout << "time consumption duration3:\t" << consumption2 << std::endl;
+
+		duration1 = static_cast<double>(cv::getTickCount()) - duration;
+		duration1 /= cv::getTickFrequency();
+		std::cout << "\n process per frame takes \t :" << duration1<<"\t"<<"s"<<std::endl;
+		//cv::namedWindow("Ğ§¹ûÍ¼", 0);
+		cv::imshow("Ğ§¹ûÍ¼", cleanframe);
+		cv::waitKey(1);
+		framenum++;
+
+	}
+
+
+	/*imshow("backgroundroi", backgroundroi);
+	cv::imwrite("../data/back_960_720.jpg", background);
+	waitKey(0);*/
+	system("pause");
+	return 0;
 }
