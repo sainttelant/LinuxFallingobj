@@ -424,7 +424,7 @@ void SplitObjIF::SplitIF::Setdata(SplitObjReceiver inferout)
 	m_Data.framenum = inferout.framenum;
 };
 
-SplitObjIF::SplitIF::GetReceiverData()
+SplitObjIF::SplitObjReceiver SplitObjIF::SplitIF::GetReceiverData()
 {
 	return m_Data;
 };
