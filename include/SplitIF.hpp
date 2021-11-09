@@ -12,6 +12,8 @@
 
 namespace SplitObjIF
 {
+
+
     // 图像位置
     struct Postiion
     {
@@ -42,16 +44,34 @@ namespace SplitObjIF
 
     struct SplitObjReceiver
     {
-       cv::Mat frame;
        unsigned int framenum;
        long timestamp;
+       // 安全起见拷贝一次从inferout，等号操作深拷贝一次
        std::vector<Postiion> v_inferout;
         /* data */
     };
+
+    class SplitIF
+    {
+    public:
+        static SplitIF  &Instance()
+		{
+			static SplitIF m_SplitIF;
+			return m_SplitIF;
+		};
+        SplitObjSender RunSplitDetect();
+        void Setdata(SplitObjReceiver inferout);
+        void Setinnerframecount(unsigned int framecount);
+        unsigned int Getinnerframecount();
+        SplitObjReceiver GetReceiverData();
+    private:
+
+        SplitIF();
+        virtual ~SplitIF();
+        SplitObjReceiver m_Data;
+        unsigned int innerframecount;
+    };
     
-
-    void SplitWork(SplitObjReceiver &receiverpin, SplitObjSender &senderpin);
-
     
 } // namespace SplitObj
 

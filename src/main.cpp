@@ -408,6 +408,38 @@ void removePepperNoise(Mat& mask)
 	}
 }
 
+ SplitObjIF::SplitIF::SplitIF(/* args */)
+{
+};
+    
+SplitObjIF::SplitIF::~SplitIF()
+{
+
+};
+
+void SplitObjIF::SplitIF::Setdata(SplitObjReceiver inferout)
+{
+	m_Data.timestamp = inferout.timestamp;
+	m_Data.v_inferout = inferout.v_inferout;
+	m_Data.framenum = inferout.framenum;
+};
+
+SplitObjIF::SplitIF::GetReceiverData()
+{
+	return m_Data;
+};
+
+void SplitObjIF::SplitIF::Setinnerframecount(unsigned int framecount)
+{
+	innerframecount = framecount;
+};
+
+
+unsigned int SplitObjIF::SplitIF::Getinnerframecount()
+{
+	return innerframecount;
+};
+
 
 int main()
 {
@@ -420,7 +452,10 @@ int main()
 #else
 
 #if RTSP
+	
+	// 接入inferout
 
+	SplitObjIF::SplitObjReceiver inferData = SplitObjIF::SplitIF::Instance().GetReceiverData();
 
 #else
 	std::ifstream infile("../results/yolov5_xuewei_960_720.txt");
@@ -620,7 +655,6 @@ int main()
 		//break;
 		int count = 0;
 		int count1 = 0;
-
 		iou_tracks.clear();
 
 		orig_img.copyTo(drawingorig);
@@ -854,6 +888,25 @@ int main()
 			Demo(orig_img, result, class_names,false);
 		}
 #else
+
+
+	#if RTSP
+
+			
+	BoundingBox tempbb;
+	for(int i=0; i<inferData.v_inferout.size();i++ )
+	{
+		tempbb.x = static_cast<float>(inferData.v_inferout[i].left);
+		tempbb.y = static_cast<float>(inferData.v_inferout[i].top);
+		tempbb.width = static_cast<float>(inferData.v_inferout[i].width);
+		tempbb.height = static_cast<float>(inferData.v_inferout[i].height);
+		tempbb.score = 1;
+		tempbb.m_status = UnkownObj;
+		yolov5_currentobj.push_back(tempbb);
+
+	}
+	SplitObjIF::SplitIF::Instance().Setinnerframecount(count4tracker);
+	#else
 		
 		if (count4tracker< yolov5_detections.size())
 		{
@@ -864,6 +917,11 @@ int main()
 			printf("it is not possible!, and yolov5 detections frames are less than videos!");
 			return -1;
 		}
+	
+	#endif // RTSP
+
+
+		
 #endif
 
 		//  ��ȡ��ǰ���������̽����
