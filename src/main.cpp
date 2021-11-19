@@ -445,7 +445,17 @@ std::vector<SplitObjIF::SplitObjSender> SplitObjIF::SplitIF::RunSplitDetect(bool
 	std::vector<SplitObjIF::SplitObjSender> v_senderpin;
 	if (run)
 	{
-		printf("now, Turn splitobj detection ON!");
+		printf(">>>>>>>>>>>>>>now, Turn splitobj detection ON!<<<<<<<<<<<<<<<\n");
+		printf(">>>>>>>>>>>>>>now, Turn splitobj detection ON!<<<<<<<<<<<<<<<\n");
+		printf(">>>>>>>>>>>>>>now, Turn splitobj detection ON!<<<<<<<<<<<<<<<\n");
+		printf(">>>>>>>>>>>>>>now, Turn splitobj detection ON!<<<<<<<<<<<<<<<\n");
+		printf(">>>>>>>>>>>>>>now, Turn splitobj detection ON!<<<<<<<<<<<<<<<\n");
+		printf(">>>>>>>>>>>>>>now, Turn splitobj detection ON!<<<<<<<<<<<<<<<\n");
+		printf(">>>>>>>>>>>>>>now, Turn splitobj detection ON!<<<<<<<<<<<<<<<\n");
+		printf(">>>>>>>>>>>>>>now, Turn splitobj detection ON!<<<<<<<<<<<<<<<\n");
+		printf(">>>>>>>>>>>>>>now, Turn splitobj detection ON!<<<<<<<<<<<<<<<\n");
+		printf(">>>>>>>>>>>>>>now, Turn splitobj detection ON!<<<<<<<<<<<<<<<\n");
+		
 		work(v_senderpin);
 	}
 	else
@@ -459,7 +469,7 @@ std::vector<SplitObjIF::SplitObjSender> SplitObjIF::SplitIF::RunSplitDetect(bool
 	return v_senderpin;
 }
 
-void work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
+void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 {
 #if yolov5
 
@@ -506,7 +516,7 @@ void work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	if (!capture.open(rtsp))
 	{
 		std::cout << "it can not open rtsp!!!!" << std::endl;
-		return -1;
+		return;
 	}
 
 #else
@@ -902,8 +912,8 @@ void work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	BoundingBox tempbb;
 	for(int i=0; i<inferData.v_inferout.size();i++ )
 	{
-		tempbb.x = static_cast<float>(inferData.v_inferout[i].left);
-		tempbb.y = static_cast<float>(inferData.v_inferout[i].top);
+		tempbb.x = static_cast<float>(inferData.v_inferout[i].x);
+		tempbb.y = static_cast<float>(inferData.v_inferout[i].y);
 		tempbb.width = static_cast<float>(inferData.v_inferout[i].width);
 		tempbb.height = static_cast<float>(inferData.v_inferout[i].height);
 		tempbb.score = 1;
@@ -1198,7 +1208,7 @@ void work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 					offset++;
 					sprintf(destroypatchname, "patch_%d", iter->ID);
 					cv::destroyAllWindows();
-					iter = SplitObjForSure.erase(iter);
+					iter = senderpin.erase(iter);
 				}
 				else
 				{
@@ -1221,7 +1231,7 @@ void work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 					offset++;
 					sprintf(destroypatchname, "patch_%d", iter->ID);
 					cv::destroyAllWindows();
-					iter = SplitObjForSure.erase(iter);
+					iter = senderpin.erase(iter);
 				}
 				else
 				{

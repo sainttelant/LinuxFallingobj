@@ -45,9 +45,13 @@ namespace SplitObjIF
        unsigned int framenum;
        long timestamp;
        // 安全起见拷贝一次从inferout，等号操作深拷贝一次
-       std::vector<Postiion> v_inferout;
+       std::vector<cv::Rect> v_inferout;
         /* data */
     };
+
+
+    void work(std::vector<SplitObjIF::SplitObjSender> &senderpin);
+
 
     class SplitIF
     {
