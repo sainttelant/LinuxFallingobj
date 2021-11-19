@@ -13,15 +13,6 @@
 namespace SplitObjIF
 {
 
-
-    // 图像位置
-    struct Postiion
-    {
-        int top;
-        int left;
-        int width;
-        int height; 
-    };
     struct GpsPostion
     {
         double longtitude;
@@ -36,10 +27,17 @@ namespace SplitObjIF
     struct SplitObjSender
     {
         int SplitID;
-        Postiion m_pixelRect;
         GpsPostion m_gps;
         RadarPostion m_radarpos;
-        long timestamp;
+        long appearing_timestamp;
+        long dispearing_timestamp;
+        cv::Rect m_postion;
+		cv::Mat imgdata;
+		unsigned int firstshowframenum;
+		int ID;
+		bool moved;
+		bool haschecked;
+		int checktimes;
     };
 
     struct SplitObjReceiver
@@ -59,7 +57,7 @@ namespace SplitObjIF
 			static SplitIF m_SplitIF;
 			return m_SplitIF;
 		};
-        SplitObjSender RunSplitDetect();
+        std::vector<SplitObjIF::SplitObjSender> RunSplitDetect(bool run);
         void Setdata(SplitObjReceiver inferout);
         void Setinnerframecount(unsigned int framecount);
         unsigned int Getinnerframecount();

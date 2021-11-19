@@ -16,7 +16,7 @@
 
 // define use video or rtsp
 
-#define RTSP 0
+#define RTSP 1
 using namespace cv;
 //using namespace std;
 
@@ -440,11 +440,27 @@ unsigned int SplitObjIF::SplitIF::Getinnerframecount()
 	return innerframecount;
 };
 
-
-int main()
+std::vector<SplitObjIF::SplitObjSender> SplitObjIF::SplitIF::RunSplitDetect(bool run)
 {
+	std::vector<SplitObjIF::SplitObjSender> v_senderpin;
+	if (run)
+	{
+		printf("now, Turn splitobj detection ON!");
+		work(v_senderpin);
+	}
+	else
+	{
+		printf("turn SplitObj detection off!");
+		if(!v_senderpin.empty())
+		{
+			v_senderpin.clear();
+		}
+	}
+	return v_senderpin;
+}
 
-
+void work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
+{
 #if yolov5
 
 	std::ofstream outfile("../results/yolov5.txt");
@@ -454,9 +470,9 @@ int main()
 #if RTSP
 	
 	// 接入inferout
-
 	SplitObjIF::SplitObjReceiver inferData = SplitObjIF::SplitIF::Instance().GetReceiverData();
-
+	SplitObjIF::SplitObjSender SenderResults;
+	memset(&SenderResults,0,sizeof(SplitObjIF::SplitObjSender));
 #else
 	std::ifstream infile("../results/yolov5_xuewei_960_720.txt");
 	std::vector< std::vector<BoundingBox> > yolov5_detections;
@@ -486,8 +502,8 @@ int main()
 	std::string uri = "rtsp://admin:Ucit2021@10.203.204.198:554/h264/ch1/main/av_stream";
 	sprintf(rtsp, "rtspsrc location=%s latency=%s ! rtph264depay ! h264parse ! omxh264dec ! nvvidconv ! video/x-raw, width=(int)%d, height=(int)%d, format=(string)BGRx ! videoconvert ! appsink sync=false",uri.c_str(),rtsp_latency.c_str(),image_width,image_height);
 	cv::VideoCapture capture;
-	// 嵌入式运行不成功，需要连到本地camera才行
-	if (!capture.open(uri))
+	// 嵌入式运行不成功，需要网络情况良好
+	if (!capture.open(rtsp))
 	{
 		std::cout << "it can not open rtsp!!!!" << std::endl;
 		return -1;
@@ -504,12 +520,8 @@ int main()
 	capture.read(orig_img);
 #endif // RTSP
 
-
-
-	
 	capture.read(orig_img);
 	//orig_img = cv::imread("../data/back1.jpg");
-	
 	cv::resize(orig_img, orig_img, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
 	cv::cvtColor(orig_img, orig_img, cv::COLOR_BGR2YCrCb);
 	//cv::GaussianBlur(orig_img, orig_img, cv::Size(3,3), 3.0);
@@ -582,14 +594,10 @@ int main()
 
 	// ��֡�ʵ�̽����
 	std::vector< std::vector<BoundingBox>> vv_detections;
-	
-
 	// ��֡��׷�ٽ��
 	std::vector< Track > iou_tracks;
 	int splitID=1;
-
 	vector<xueweiImage::SplitObject> SplitObjForSure;
-
 	xueweiImage::ImageAnalysis Analysis;
 
 
@@ -631,6 +639,8 @@ int main()
 		v_bbnd.clear();
 		
 		#if RTSP
+
+
 		bool ret = capture.grab();
 		capture >> orig_img;
 		if (orig_img.empty())
@@ -888,11 +898,7 @@ int main()
 			Demo(orig_img, result, class_names,false);
 		}
 #else
-
-
-	#if RTSP
-
-			
+	#if RTSP		
 	BoundingBox tempbb;
 	for(int i=0; i<inferData.v_inferout.size();i++ )
 	{
@@ -1092,9 +1098,49 @@ int main()
 					tmpSplitObj.imgdata = orig_img(tmpSplitObj.m_postion);
 					tmpSplitObj.haschecked = false;
 					tmpSplitObj.checktimes = 1;
-					
+					// copy a result to senderpin
+					SenderResults.m_gps.latititude = 0;
+					SenderResults.m_gps.longtitude = 0;
+					SenderResults.m_radarpos.x = 0.0f;
+					SenderResults.m_radarpos.y = 0.0f;
+					SenderResults.SplitID = splitID;
+					// this timestamp is when the object
+					SenderResults.appearing_timestamp = inferData.timestamp;
+					SenderResults.m_postion.x = static_cast<int>(b.x);
+					SenderResults.m_postion.y = static_cast<int>(b.y);
+					SenderResults.m_postion.width = static_cast<int>(b.width);
+					SenderResults.m_postion.height = static_cast<int>(b.height);
+					SenderResults.moved = false;
+					SenderResults.firstshowframenum = count4tracker;
+					SenderResults.imgdata = orig_img(tmpSplitObj.m_postion);
+					SenderResults.haschecked = false;
+					SenderResults.checktimes = 1;	
+
 					char display[256];
-					// ���ﻹҪȷ����û���ظ�����д
+					#if RTSP
+					if (!senderpin.empty())
+					{
+						// �����������ж��Ƿ����µ����������
+						int index = Analysis.CheckHighestIOU(tmpSplitObj.m_postion, SplitObjForSure);
+						if (index != -1 \
+							&& Analysis.intersectionOU(tmpSplitObj.m_postion, SplitObjForSure[index].m_postion) >= 0.75)
+						{
+								
+						}
+						else
+						{
+							senderpin.push_back(SenderResults);
+							splitID++;
+						}
+						
+					}
+					else
+					{
+						senderpin.push_back(SenderResults);
+						splitID++;
+					}
+
+					#else
 					if (!SplitObjForSure.empty())
 					{
 						// �����������ж��Ƿ����µ����������
@@ -1106,6 +1152,7 @@ int main()
 						}
 						else
 						{
+							senderpin.push_back(SenderResults);
 							SplitObjForSure.push_back(tmpSplitObj);
 							splitID++;
 						}
@@ -1113,26 +1160,27 @@ int main()
 					}
 					else
 					{
+						senderpin.push_back(SenderResults);
 						SplitObjForSure.push_back(tmpSplitObj);
 						splitID++;
 					}
-					
+					#endif
 					break;
 				}
-				
 			}
 		}
 
-
-		// ��ÿ��ѭ��������ʾ ������
-		// ����������У���Ƿ�ԭ�ػ��������û�еĻ���������ɾ�������Ӧ����������
 
 
 		char displayindex[256],judge[256];
 		int offset = 1; 
 		// for  destroy corresponding patch 
 		char destroypatchname[256];
-		for (vector <xueweiImage::SplitObject>::iterator iter = SplitObjForSure.begin(); iter < SplitObjForSure.end();)
+
+
+		#if RTSP
+
+		for (vector<SplitObjIF::SplitObjSender>::iterator iter = senderpin.begin(); iter < senderpin.end();)
 		{
 			int timeinterval = count4tracker - iter->firstshowframenum;
 			if (timeinterval > CHECK_INTERVAL && !iter->haschecked)
@@ -1206,6 +1254,84 @@ int main()
 			}
 		}
 
+		#else
+			for (vector <xueweiImage::SplitObject>::iterator iter = SplitObjForSure.begin(); iter < SplitObjForSure.end();)
+		{
+			int timeinterval = count4tracker - iter->firstshowframenum;
+			if (timeinterval > CHECK_INTERVAL && !iter->haschecked)
+			{
+				/*sprintf(judge,"judge whether the obj[%d] is moved out \n", iter->ID);*/
+				// 
+				cv::Mat currentpatchhere = orig_img(iter->m_postion);
+				bool movedout = Analysis.BemovedOut(iter->imgdata, currentpatchhere, 0);
+				iter->haschecked = true;
+				iter->checktimes++;
+				if (movedout)
+				{
+					sprintf(judge,"obj[%d] has been moved out \n", iter->ID);
+					cv::putText(drawingorig, judge, cv::Point(200, 5 + (100 * offset)), 3, 1.25, cv::Scalar(100, 0, 200));
+					offset++;
+					sprintf(destroypatchname, "patch_%d", iter->ID);
+					cv::destroyAllWindows();
+					iter = SplitObjForSure.erase(iter);
+				}
+				else
+				{
+					sprintf(judge, "obj[%d] is still there, check first times \n", iter->ID);
+					cv::putText(drawingorig, judge, cv::Point(8, 5 + (100 * offset)), 3, 1.25, cv::Scalar(100, 0, 200));
+					offset++;
+					iter->moved = false;
+					iter++;
+				}
+			}
+			else if (iter->haschecked && timeinterval>(CHECK_INTERVAL*iter->checktimes))
+			{
+				cv::Mat currentpatchhere = orig_img(iter->m_postion);
+				bool movedout = Analysis.BemovedOut(iter->imgdata, currentpatchhere, 0);
+				iter->checktimes++;
+				if (movedout)
+				{
+					sprintf(judge,"obj[%d] has been moved out \n", iter->ID);
+					cv::putText(drawingorig, judge, cv::Point(8, 5 + (100 * offset)), 3, 1.25, cv::Scalar(0, 0, 255));
+					offset++;
+					sprintf(destroypatchname, "patch_%d", iter->ID);
+					cv::destroyAllWindows();
+					iter = SplitObjForSure.erase(iter);
+				}
+				else
+				{
+					sprintf(judge, "obj[%d] is still there, check[%d] times \n", iter->ID,iter->checktimes);
+					cv::putText(drawingorig, judge, cv::Point(8, 5 + (100 * offset)), 3, 1.25, cv::Scalar(0, 0, 255));
+					iter->moved = false;
+					iter++;
+				}
+			}
+			else
+			{
+				if (CHECK_INTERVAL>timeinterval)
+				{
+					sprintf(judge, "ID_%d_%d_fleft",iter->ID, CHECK_INTERVAL - timeinterval);
+				}
+				else
+				{
+					if (!iter->haschecked)
+					{
+						sprintf(judge, "ID_%d to check now", iter->ID);
+					}
+				}
+				cv::putText(drawingorig,judge,cv::Point(8,5+(100*offset)),3,1.25,cv::Scalar(0,0,255));
+				offset++;
+				sprintf(displayindex, "patch_%d ", iter->ID);
+				cv::namedWindow(displayindex, WINDOW_NORMAL);
+				cv::imshow(displayindex, iter->imgdata);
+				cv::waitKey(5);
+				iter++;
+			}
+		}
+
+		#endif
+
+
 		count4tracker++;
 		duration = static_cast<double>(cv::getTickCount()) - duration3;
 		duration /= cv::getTickFrequency();
@@ -1215,331 +1341,19 @@ int main()
 		cv::imshow("orig", drawingorig);
 		cv::waitKey(5);
 	}
-
-
-	
-
 #if yolov5
 	outfile.close();
 #endif
 
+}
+
+int main()
+{
+
+	bool Runokay = true;
+	std::vector<SplitObjIF::SplitObjSender> v_objsender;
+   	v_objsender=SplitObjIF::SplitIF::Instance().RunSplitDetect(Runokay);
 	system("PAUSE");
 	return 0;
-	//_getch();
 }
 
-
-int main_01()
-{
-	cv::Mat background = imread("../data/back.jpg");
-	cv::Mat object = imread("../data/object.jpg");
-
-	// ׼������׼����̽����
-
-	std::ifstream infile("../results/yolov5_out.txt");
-	std::vector< std::vector<BoundingBox> > yolov5_detections;
-	read_detections(infile, yolov5_detections,3);
-
-
-	cv::resize(background, background, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
-	// ����ʹ��copyto ���ʸ��죬��clone��
-	cv::Mat drawimg(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC3);
-	background.copyTo(drawimg);
-
-	
-	// ����roi����,960x720�����򣬵ȱ������ 320x300
-	double factorx = (double)RESIZE_WIDTH/960.0;
-	double factory = (double)RESIZE_HEIGHT/720.0;
-	
-	
-
-	cv::line(drawimg, cv::Point(424*factorx, 264*factory), cv::Point(524 * factorx, 264 * factory), cv::Scalar(0, 255, 0), 2, 0);
-	cv::line(drawimg, cv::Point(424 * factorx, 264 * factory), cv::Point(331 * factorx, 474 * factory), cv::Scalar(0, 255, 0), 2, 0);
-	cv::line(drawimg, cv::Point(524 * factorx, 264 * factory), cv::Point(764 * factorx, 474 * factory), cv::Scalar(0, 255, 0), 2, 0);
-	cv::line(drawimg, cv::Point(331 * factorx, 474 * factory), cv::Point(2 * factorx, 474 * factory), cv::Scalar(0, 255, 0), 2, 0);
-	cv::line(drawimg, cv::Point(764 * factorx, 474 * factory), cv::Point(958 * factorx, 474 * factory), cv::Scalar(0, 255, 0), 2, 0);
-	cv::line(drawimg, cv::Point(2 * factorx, 474 * factory), cv::Point(2 * factorx, 718 * factory), cv::Scalar(0, 255, 0), 2, 0);
-	cv::line(drawimg, cv::Point(958 * factorx, 474 * factory), cv::Point(958 * factorx, 718 * factory), cv::Scalar(0, 255, 0), 2, 0);
-	cv::line(drawimg, cv::Point(2 * factorx, 718 * factory), cv::Point(958 * factorx, 718 * factory), cv::Scalar(0, 255, 0), 2, 0);
-
-	// ���õ�ͨ��������
-
-	double duration, duration1,duration2;
-
-	Mat mask = cv::Mat::zeros(drawimg.size(), CV_8UC1);
-
-	Point p1(424*factorx, 264*factory); 
-	Point p2(524*factorx, 264*factory);
-	Point p8(331*factorx, 474 * factory); 
-	Point p3(764 * factorx, 474 * factory);
-	Point p7(2 * factorx, 474 * factory);  
-	Point p4(958 * factorx, 474 * factory);
-	Point p6(2 * factorx, 718 * factory); 
-	Point p5(958 * factorx, 718 * factory);
-	std::vector<Point> contour;
-	contour.push_back(p1);
-	contour.push_back(p2);
-	contour.push_back(p3);
-	contour.push_back(p4);
-	contour.push_back(p5);
-	contour.push_back(p6);
-	contour.push_back(p7);
-	contour.push_back(p8);
-
-
-
-
-	std::vector<std::vector<Point> > contours;
-	contours.push_back(contour);
-	cv::drawContours(mask, contours, -1, cv::Scalar::all(255), CV_FILLED);
-	cv::Mat backgroundroi(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC1);
-	
-	// copyto ֻ���� 0.0003s,����ʹ��
-	background.copyTo(backgroundroi, mask);
-	
-	cv::VideoCapture capture("../data/out.mp4");
-
-
-	// Anomaly ���ʼ��
-	
-	Anomaly m_test(backgroundroi);
-
-	//cv::Point p11(495, 404);
-
-	std::vector<std::vector<cv::Rect>> cadidatesall(10);
-	
-
-	float stationary_threshold = 0.6;		// low detection threshold,�޸�һ�£�����ĳɴ���������Ǿ�̬����
-	float vanish_threshold = 0.2;
-	float t_min = 3;
-
-	int framenum = 0;
-	while (1)
-	{
-		std::vector< LeftObjects > small_track;
-		small_track.clear();
-		duration = static_cast<double>(cv::getTickCount());
-		std::vector<BoundingBox> yolov5obj;
-		yolov5obj.clear();
-
-		std::vector<cv::Rect> cadidates;
-		cadidates.clear();
-		if (framenum < yolov5_detections.size())
-		{
-			yolov5obj = yolov5_detections[framenum];
-		}
-		else
-		{
-			printf("it is not possible!, and yolov5 detections frames are less than videos!");
-			return -1;
-		}
-
-
-		cv::Mat frames;
-		cv::Mat frameroi(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC1);
-		cv::Mat cleanframe(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC1);
-
-		// �洢���ܵ�Ŀ�꣬��֡
-		
-		if (!capture.read(frames)) {
-			break;
-			capture.release();
-			capture = cv::VideoCapture("../data/out.mp4");
-			//capture = cv::VideoCapture("../data/test.avi");
-			capture.read(frames);
-		}
-		else
-		{
-			cv::resize(frames, frames, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
-		}
-		/*duration2 = static_cast<double>(cv::getTickCount()) - duration;
-		duration2 /= cv::getTickFrequency();
-		std::cout << "\n capture and resize per frame takes \t :" << duration2 << "\t" << "s" << std::endl;*/
-		// ÿһ֡��һ��roi ��ȡ
-		frames.copyTo(frameroi, mask);
-		frames.copyTo(cleanframe, mask);
-
-		double time1 = static_cast<double>(cv::getTickCount());
-		duration1 = static_cast<double>(cv::getTickCount())-duration;
-		double consumption  = duration1/ cv::getTickFrequency();
-
-		std::cout << "time consumption duration1:\t" << consumption << std::endl;
-
-		// �����yolov5��̽����, ע�⣺ frameroiֻ�������軭��������
-		std::vector<BoundingBox>::iterator iters_b = yolov5obj.begin();
-		std::vector<BoundingBox>::iterator iter_e = yolov5obj.end();
-		std::vector<cv::Point> yolov5Points;
-		char insidezifu[256];
-		bool updateback = true;
-		int iternum = 0;
-		for (; iters_b != iter_e; iters_b++)
-		{
-			yolov5Points.clear();
-			iternum++;
-			cv::Point zuoshang, youxia;
-			zuoshang.x = (int)iters_b->x;
-			zuoshang.y = (int)iters_b->y;
-			youxia.x = (int)iters_b->x + (int)iters_b->width;
-			youxia.y = (int)iters_b->y + (int)iters_b->height;
-
-			cv::Point topleft, topright, bottomleft, bottomright;
-			topleft.x = (int)iters_b->x;
-			topleft.y = (int)iters_b->y;
-			topright.x = (int)iters_b->x + (int)iters_b->width;
-			topright.y = (int)iters_b->y;
-			bottomleft.x = (int)iters_b->x;
-			bottomleft.y = (int)iters_b->y + (int)iters_b->height;
-			bottomright.x = (int)iters_b->x + (int)iters_b->width;
-			bottomright.y = (int)iters_b->y + (int)iters_b->height;
-
-			yolov5Points.push_back(topleft);
-			yolov5Points.push_back(topright);
-			yolov5Points.push_back(bottomright);
-			yolov5Points.push_back(bottomleft);
-
-			double ticks = static_cast<double>(cv::getTickCount());
-			bool insideornot = m_test.PointsinRegion(yolov5Points, contour);
-			double ticks1 = static_cast<double>(cv::getTickCount()) - ticks;
-			ticks1 /= cv::getTickFrequency();
-			//	std::cout << "per Pointregion takes:\t" << ticks1 << std::endl;
-			sprintf(insidezifu, "%s", insideornot ? "In" : "Out");
-			if (insideornot)
-			{
-
-#if debug
-				rectangle(frameroi,
-					Point((int)iters_b->x,
-						(int)iters_b->y),
-					Point((int)iters_b->x + (int)iters_b->w,
-						(int)iters_b->y + (int)iters_b->h),
-					Scalar(0, 0, 255),
-					2,
-					8);
-				cv::putText(frameroi,
-					insidezifu,
-					cv::Point(zuoshang.x - 20, zuoshang.y - 12),
-					1,
-					1.5,
-					cv::Scalar(0, 0, 255),
-					2);
-#endif		
-				updateback = false;
-			}
-			else
-			{
-
-#if debug
-				rectangle(frameroi,
-					Point((int)iters_b->x,
-						(int)iters_b->y),
-					Point((int)iters_b->x + (int)iters_b->w,
-						(int)iters_b->y + (int)iters_b->h),
-					Scalar(255, 0, 0),
-					2,
-					8);
-				cv::putText(frameroi,
-					insidezifu,
-					cv::Point(zuoshang.x - 20, zuoshang.y - 12),
-					1,
-					1.5,
-					cv::Scalar(255, 0, 0),
-					2);
-#endif
-				
-			}
-
-		}
-		double time2 = static_cast<double>(cv::getTickCount());
-		duration2 = static_cast<double>(cv::getTickCount()) - time1;
-		double consumption1 = duration2 / cv::getTickFrequency();
-		std::cout << "time consumption duration2:\t" << consumption1 << std::endl;
-
-
-		// �����debugʹ�õģ���ʽ�汾Ҫȥ��
-#if debug
-		imshow("Debugframe", frameroi);
-		waitKey(3);
-#endif
-		// ע�⣺ frameroiֻ�������軭��������
-		m_test.UpdateBack(cleanframe, updateback);
-		// ��֡����ʾ,ע�⣺ frameroiֻ�������軭��������
-
-		double zhenctime = static_cast<double>(cv::getTickCount());
-
-		if (framenum%25==0)
-		{
-			m_test.FindDiff(cleanframe, yolov5obj, cadidates);
-			if (!cadidates.empty())
-			{
-				cadidatesall.push_back(cadidates);
-			}
-			else
-			{
-				cadidatesall.clear();
-			}
-		}
-
-		// �������µ�8�����ݶ�
-		if (cadidatesall.size()>12)
-		{
-			auto iter = cadidatesall.erase(cadidatesall.begin(), cadidatesall.end() - 8);
-		}
-
-		small_track = smalltrack(stationary_threshold, vanish_threshold, t_min, cadidatesall);
-
-		char info[256];
-		for (auto dt : small_track)
-		{
-				
-				cv::Rect b = dt.m_box.back();
-				
-				std::string s_status;
-				cv::Scalar blue(255, 0, 0);
-				cv::Scalar red(0, 0, 255);
-				cv::Scalar green(0, 255, 0);
-				switch (dt.status)
-				{
-				case Suspected:
-					s_status = "Suspected";
-					cv::rectangle(cleanframe, cv::Point(b.x, b.y), cv::Point(b.x + b.width, b.y + b.height), blue, 2);
-					sprintf(info, "ID:%d_Ap:%d_%s", dt.m_ID, dt.count, s_status.c_str());
-					cv::putText(cleanframe, info, cv::Point((b.x + b.width - b.width / 2) - 30, b.y + b.height - 5), 1, 1, blue, 1);
-					break;
-				case Static_Sure:
-					s_status = "Static";
-					cv::rectangle(cleanframe, cv::Point(b.x, b.y), cv::Point(b.x + b.width, b.y + b.height), red, 2);
-					sprintf(info, "ID:%d_Ap:%d_%s", dt.m_ID, dt.count, s_status.c_str());
-					cv::putText(cleanframe, info, cv::Point((b.x + b.width - b.width / 2) - 30, b.y + b.height - 5), 1, 1, red, 1);
-					break;
-				}
-		}
-
-
-
-		double zhenctime1 = static_cast<double>(cv::getTickCount()) - zhenctime;
-		double zhenctimeconsumption = zhenctime1 / cv::getTickFrequency();
-		std::cout << "zhencha time consumption:\t" << zhenctimeconsumption << std::endl;
-
-
-		duration2 = static_cast<double>(cv::getTickCount()) - time2;
-		double consumption2 = duration2 / cv::getTickFrequency();
-
-		std::cout << "time consumption duration3:\t" << consumption2 << std::endl;
-
-		duration1 = static_cast<double>(cv::getTickCount()) - duration;
-		duration1 /= cv::getTickFrequency();
-		std::cout << "\n process per frame takes \t :" << duration1<<"\t"<<"s"<<std::endl;
-		//cv::namedWindow("Ч��ͼ", 0);
-		cv::imshow("Ч��ͼ", cleanframe);
-		cv::waitKey(1);
-		framenum++;
-
-	}
-
-
-	/*imshow("backgroundroi", backgroundroi);
-	cv::imwrite("../data/back_960_720.jpg", background);
-	waitKey(0);*/
-	system("pause");
-	return 0;
-}
