@@ -15,7 +15,7 @@
 #define CHECK_INTERVAL 10
 
 // define use video or rtsp
-
+#define READIMGONLY 1
 #define RTSP 1
 using namespace cv;
 //using namespace std;
@@ -471,6 +471,7 @@ std::vector<SplitObjIF::SplitObjSender> SplitObjIF::SplitIF::RunSplitDetect(bool
 
 void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 {
+
 #if yolov5
 
 	std::ofstream outfile("../results/yolov5.txt");
@@ -518,6 +519,26 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		std::cout << "it can not open rtsp!!!!" << std::endl;
 		return;
 	}
+
+#if READIMGONLY
+	while (1)
+	{
+		
+		bool ret = capture.grab();
+		capture >> orig_img;
+		if (orig_img.empty())
+		{
+			continue;
+		}
+		else
+		{
+			cv::imshow("RTSP_display",orig_img);
+			cv::waitKey(5);
+		}
+	};
+	
+#endif
+
 
 #else
 	cv::VideoCapture capture("../data/out_xuewei.mp4");
