@@ -21,6 +21,10 @@ set(LIBRARY_OUTPUT_PATH${PROJECT_SOURCE_DIR}/lib)
 # to the absolute path to the directory containing OpenCVConfig.cmake file
 # via the command line or GUI
 
+find_package(VisionWorks REQUIRED)
+find_package(VisionWorks-NVXIO)
+include_directories("${VisionWorks_INCLUDE_DIRS}")
+#include_directories("${VisionWorks-NVXIO_INCLUDE_DIRS}")
 
 find_package(OpenCV REQUIRED)
 include_directories( 
@@ -37,7 +41,11 @@ aux_source_directory(src SRC_LIST)
 add_executable(FallObj ${SRC_LIST})
 
 # tianjia opencv lib path
-target_link_libraries(FallObj ${OpenCV_LIBS})
+target_link_libraries(FallObj
+ ${OpenCV_LIBS}
+  ${VisionWorks_LIBRARIES}
+  ${VisionWorks-NVXIO_LIBRARIES}
+)
 set (EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 
  

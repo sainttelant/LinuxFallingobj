@@ -1,3 +1,6 @@
+#include <NVX/nvx.h>
+#include <NVX/nvx_opencv_interop.hpp>
+
 #include "SplitIF.hpp"
 #include "UA-DETRAC.h"
 // iou relevant
@@ -15,8 +18,8 @@
 #define CHECK_INTERVAL 10
 
 // define use video or rtsp
-
-#define RTSP 1
+#define READIMGONLY 0
+#define RTSP 0
 using namespace cv;
 //using namespace std;
 
@@ -218,7 +221,7 @@ gaussian* Delete_gaussian(gaussian* nptr)
 void RemoveSmallRegion(Mat& Src, Mat& Dst, int AreaLimit, int CheckMode, int NeihborMode)
 {
 	int RemoveCount = 0;       //��¼��ȥ�ĸ���  
-	//��¼ÿ�����ص����״̬�ı�ǩ��0����δ��飬1�������ڼ��,2������鲻�ϸ���Ҫ��ת��ɫ����3�������ϸ������  
+	//��¼ÿ�����ص����״̬�ı�ǩ��?����δ���?�������ڼ��?2������鲻�ϸ���Ҫ��ת��ɫ����?�������ϸ������? 
 	Mat Pointlabel = Mat::zeros(Src.size(), CV_8UC1);
 
 	if (CheckMode == 1)
@@ -254,7 +257,7 @@ void RemoveSmallRegion(Mat& Src, Mat& Dst, int AreaLimit, int CheckMode, int Nei
 		}
 	}
 
-	std::vector<Point2i> NeihborPos;  //��¼�����λ��  
+	std::vector<Point2i> NeihborPos;  //��¼�����λ��? 
 	NeihborPos.push_back(Point2i(-1, 0));
 	NeihborPos.push_back(Point2i(1, 0));
 	NeihborPos.push_back(Point2i(0, -1));
@@ -270,7 +273,7 @@ void RemoveSmallRegion(Mat& Src, Mat& Dst, int AreaLimit, int CheckMode, int Nei
 	else std::cout << "Neighbor mode: 4����." << std::endl;
 	int NeihborCount = 4 + 4 * NeihborMode;
 	int CurrX = 0, CurrY = 0;
-	//��ʼ���  
+	//��ʼ���? 
 	for (int i = 0; i < Src.rows; ++i)
 	{
 		uchar* iLabel = Pointlabel.ptr<uchar>(i);
@@ -278,11 +281,11 @@ void RemoveSmallRegion(Mat& Src, Mat& Dst, int AreaLimit, int CheckMode, int Nei
 		{
 			if (iLabel[j] == 0)
 			{
-				//********��ʼ�õ㴦�ļ��**********  
+				//********��ʼ�õ㴦�ļ��?*********  
 				std::vector<cv::Point2i> GrowBuffer;                                      //��ջ�����ڴ洢������  
 				GrowBuffer.push_back(cv::Point2i(j, i));
 				Pointlabel.at<uchar>(i, j) = 1;
-				int CheckResult = 0;                                               //�����жϽ�����Ƿ񳬳���С����0Ϊδ������1Ϊ����  
+				int CheckResult = 0;                                               //�����жϽ�����Ƿ񳬳���С����?Ϊδ������1Ϊ����  
 
 				for (int z = 0; z < GrowBuffer.size(); z++)
 				{
@@ -296,12 +299,12 @@ void RemoveSmallRegion(Mat& Src, Mat& Dst, int AreaLimit, int CheckMode, int Nei
 							if (Pointlabel.at<uchar>(CurrY, CurrX) == 0)
 							{
 								GrowBuffer.push_back(Point2i(CurrX, CurrY));  //��������buffer  
-								Pointlabel.at<uchar>(CurrY, CurrX) = 1;           //���������ļ���ǩ�������ظ����  
+								Pointlabel.at<uchar>(CurrY, CurrX) = 1;           //���������ļ���ǩ�������ظ����? 
 							}
 						}
 					}
 				}
-				if (GrowBuffer.size() > AreaLimit) CheckResult = 2;                 //�жϽ�����Ƿ񳬳��޶��Ĵ�С����1Ϊδ������2Ϊ����  
+				if (GrowBuffer.size() > AreaLimit) CheckResult = 2;                 //�жϽ�����Ƿ񳬳��޶��Ĵ�С����?Ϊδ������2Ϊ����  
 				else { CheckResult = 1;   RemoveCount++; }
 				for (int z = 0; z < GrowBuffer.size(); z++)                         //����Label��¼  
 				{
@@ -309,7 +312,7 @@ void RemoveSmallRegion(Mat& Src, Mat& Dst, int AreaLimit, int CheckMode, int Nei
 					CurrY = GrowBuffer.at(z).y;
 					Pointlabel.at<uchar>(CurrY, CurrX) += CheckResult;
 				}
-				//********�����õ㴦�ļ��**********  
+				//********�����õ㴦�ļ��?*********  
 
 
 			}
@@ -317,7 +320,7 @@ void RemoveSmallRegion(Mat& Src, Mat& Dst, int AreaLimit, int CheckMode, int Nei
 	}
 
 	CheckMode = 255 * (1 - CheckMode);
-	//��ʼ��ת�����С������  
+	//��ʼ��ת�����С������? 
 	for (int i = 0; i < Src.rows; ++i)
 	{
 		uchar* iData = Src.ptr<uchar>(i);
@@ -393,7 +396,7 @@ void removePepperNoise(Mat& mask)
 
 				if (surroundings)
 				{
-					// 5*5 ������ڲ㣨3*3��С����
+					// 5*5 ������ڲ�?*3��С����
 					*(pUp1 - 1) = *(pUp1) = *(pUp1 + 1) = 255;
 					*(pThis - 1) = *pThis = *(pThis + 1) = 255;
 					*(pDown1 - 1) = *pDown1 = *(pDown1 + 1) = 255;
@@ -471,6 +474,7 @@ std::vector<SplitObjIF::SplitObjSender> SplitObjIF::SplitIF::RunSplitDetect(bool
 
 void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 {
+
 #if yolov5
 
 	std::ofstream outfile("../results/yolov5.txt");
@@ -512,12 +516,32 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	std::string uri = "rtsp://admin:Ucit2021@10.203.204.198:554/h264/ch1/main/av_stream";
 	sprintf(rtsp, "rtspsrc location=%s latency=%s ! rtph264depay ! h264parse ! omxh264dec ! nvvidconv ! video/x-raw, width=(int)%d, height=(int)%d, format=(string)BGRx ! videoconvert ! appsink sync=false",uri.c_str(),rtsp_latency.c_str(),image_width,image_height);
 	cv::VideoCapture capture;
-	// 嵌入式运行不成功，需要网络情况良好
+	// 嵌入式运行不成功，需要网络情况良�?
 	if (!capture.open(rtsp))
 	{
 		std::cout << "it can not open rtsp!!!!" << std::endl;
 		return;
 	}
+
+#if READIMGONLY
+	while (1)
+	{
+		
+		bool ret = capture.grab();
+		capture >> orig_img;
+		if (orig_img.empty())
+		{
+			continue;
+		}
+		else
+		{
+			cv::imshow("RTSP_display",orig_img);
+			cv::waitKey(5);
+		}
+	};
+	
+#endif
+
 
 #else
 	cv::VideoCapture capture("../data/out_xuewei.mp4");
@@ -604,7 +628,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 
 	// ��֡�ʵ�̽����
 	std::vector< std::vector<BoundingBox>> vv_detections;
-	// ��֡��׷�ٽ��
+	// ��֡��׷�ٽ��?
 	std::vector< Track > iou_tracks;
 	int splitID=1;
 	vector<xueweiImage::SplitObject> SplitObjForSure;
@@ -685,7 +709,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		for (i = 0; i < nL; i++)
 		{
 			r_ptr = orig_img.ptr(i);
-			// ��ֵ����ͼ��ÿ�����ص�ĵ�ַָ��
+			// ��ֵ����ͼ��ÿ�����ص�ĵ�ַָ��?
 			b_ptr = bin_img.ptr(i);
 
 			for (j = 0; j < nC; j += 3)
@@ -856,7 +880,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		//step one, filter tiny points
 		//RemoveSmallRegion(bin_img, bin_img, 20, 0, 0);	
 		
-		// ��Ч��֤��ֵ�˲��ͱղ����Լ۱���ߣ�ҲЧ���Ϻá�
+		// ��Ч��֤��ֵ�˲��ͱղ����Լ۱���ߣ�ҲЧ���Ϻá�?
 		// ��ֵ�˲�
 		//cv::medianBlur(bin_img, bin_img, 3);
 
@@ -867,7 +891,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		
 		
 
-		// �������
+		// �������?
 		std::vector<std::vector<cv::Point>> contours;
 		std::vector<cv::Vec4i> hierarcy;
 		
@@ -875,7 +899,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		cv::bitwise_not(bin_img, bin_img);
 
 
-		// �ٲ���һ�����Ͳ����������ڵĿյ���ͨ����,��Ҫ�㷴�ˣ����;��Ƕ�ͼ��ĸ������ֽ������͡�
+		// �ٲ���һ�����Ͳ����������ڵĿյ���ͨ����,��Ҫ�㷴�ˣ����;��Ƕ�ͼ��ĸ������ֽ������͡�?
 		cv::Mat dilatekernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(7, 7));
 		cv::dilate(bin_img, bin_img, dilatekernel, Point(-1, -1), 1, 0);
 
@@ -898,7 +922,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		std::vector<BoundingBox> yolov5_currentobj;
 		
 #if yolov5
-		// �ȸ�һ�������������
+		// �ȸ�һ�������������?
 		auto result = detector.Run(orig_img, conf_thres, iou_thres);
 
 
@@ -931,7 +955,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		else
 		{
 			printf("it is not possible!, and yolov5 detections frames are less than videos!");
-			return -1;
+			return ;
 		}
 	
 	#endif // RTSP
@@ -940,7 +964,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		
 #endif
 
-		//  ��ȡ��ǰ���������̽����
+		//  ��ȡ��ǰ���������̽����?
 		std::vector<BoundingBox>::iterator iters_b = yolov5_currentobj.begin();
 		std::vector<BoundingBox>::iterator iter_e = yolov5_currentobj.end();
 		std::cout << "begin to draw yolov5 detections'results!!" << std::endl;
@@ -986,7 +1010,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 				m_BBtemp.m_status = UnkownObj;
 				v_bbnd.push_back(m_BBtemp);
 			
-				// keep ��С��Ӿ���
+				// keep ��С��Ӿ���?
 				for (int j = 0; j < 4; j++)
 				{
 					//line(orig_img, m_rect[j], m_rect[(j + 1) % 4], Scalar(0, 255, 0), 2, 8);
@@ -1109,6 +1133,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 					tmpSplitObj.haschecked = false;
 					tmpSplitObj.checktimes = 1;
 					// copy a result to senderpin
+#if RTSP
 					SenderResults.m_gps.latititude = 0;
 					SenderResults.m_gps.longtitude = 0;
 					SenderResults.m_radarpos.x = 0.0f;
@@ -1125,12 +1150,12 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 					SenderResults.imgdata = orig_img(tmpSplitObj.m_postion);
 					SenderResults.haschecked = false;
 					SenderResults.checktimes = 1;	
-
+#endif
 					char display[256];
 					#if RTSP
 					if (!senderpin.empty())
 					{
-						// �����������ж��Ƿ����µ����������
+						// �����������ж��Ƿ����µ����������?
 						int index = Analysis.CheckHighestIOU(tmpSplitObj.m_postion, SplitObjForSure);
 						if (index != -1 \
 							&& Analysis.intersectionOU(tmpSplitObj.m_postion, SplitObjForSure[index].m_postion) >= 0.75)
@@ -1153,7 +1178,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 					#else
 					if (!SplitObjForSure.empty())
 					{
-						// �����������ж��Ƿ����µ����������
+						// �����������ж��Ƿ����µ����������?
 						int index = Analysis.CheckHighestIOU(tmpSplitObj.m_postion, SplitObjForSure);
 						if (index != -1 \
 							&& Analysis.intersectionOU(tmpSplitObj.m_postion, SplitObjForSure[index].m_postion) >= 0.75)
@@ -1162,7 +1187,9 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 						}
 						else
 						{
+                #if RTSP
 							senderpin.push_back(SenderResults);
+                                                                                                  #endif
 							SplitObjForSure.push_back(tmpSplitObj);
 							splitID++;
 						}
@@ -1170,7 +1197,9 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 					}
 					else
 					{
+           #if RTSP
 						senderpin.push_back(SenderResults);
+                                                     #endif
 						SplitObjForSure.push_back(tmpSplitObj);
 						splitID++;
 					}
