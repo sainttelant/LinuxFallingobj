@@ -19,6 +19,7 @@
 
 // define use video or rtsp
 #define LowVersionOpencv 1
+#define UsingOpenvx 1
 #define READIMGONLY 0
 #define RTSP 0
 using namespace cv;
@@ -222,7 +223,7 @@ gaussian* Delete_gaussian(gaussian* nptr)
 void RemoveSmallRegion(Mat& Src, Mat& Dst, int AreaLimit, int CheckMode, int NeihborMode)
 {
 	int RemoveCount = 0;       //��¼��ȥ�ĸ���  
-	//��¼ÿ�����ص����״̬�ı�ǩ��?����δ���?�������ڼ��?2������鲻�ϸ���Ҫ��ת��ɫ����?�������ϸ������? 
+	//��¼ÿ�����ص����״̬�ı�ǩ��?����δ���?�������ڼ��?2������鲻�ϸ���Ҫ��ת��ɫ����?�������ϸ������? 
 	Mat Pointlabel = Mat::zeros(Src.size(), CV_8UC1);
 
 	if (CheckMode == 1)
@@ -397,7 +398,7 @@ void removePepperNoise(Mat& mask)
 
 				if (surroundings)
 				{
-					// 5*5 ������ڲ�?*3��С����
+					// 5*5 ������ڲ�?*3��С����
 					*(pUp1 - 1) = *(pUp1) = *(pUp1 + 1) = 255;
 					*(pThis - 1) = *pThis = *(pThis + 1) = 255;
 					*(pDown1 - 1) = *pDown1 = *(pDown1 + 1) = 255;
@@ -490,7 +491,11 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	memset(&SenderResults,0,sizeof(SplitObjIF::SplitObjSender));
 #else
 	std::ifstream infile("../results/yolov5_xuewei_960_720.txt");
- std::ofstream debuglog("../results/log1.txt");
+
+#if debug
+ 	std::ofstream debuglog("../results/log1.txt");
+#endif
+
 	std::vector< std::vector<BoundingBox> > yolov5_detections;
 	// �޸Ķ�ȡ��ͼ���ʵ���������
 
@@ -507,6 +512,13 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 
 	// Declare matrices to store original and resultant binary image
 	cv::Mat orig_img,drawingorig, bin_img;
+	vx_context context =vxCreateContext();
+	vx_matrix vxmatrix = 0;
+    vx_graph vxgraph = 0;
+    vx_node vxnode = 0;
+
+
+
 	cv::Mat signalDraw(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC3);
 	
 	//Declare a VideoCapture object to store incoming frame and initialize it
@@ -518,7 +530,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	std::string uri = "rtsp://admin:Ucit2021@10.203.204.198:554/h264/ch1/main/av_stream";
 	sprintf(rtsp, "rtspsrc location=%s latency=%s ! rtph264depay ! h264parse ! omxh264dec ! nvvidconv ! video/x-raw, width=(int)%d, height=(int)%d, format=(string)BGRx ! videoconvert ! appsink sync=false",uri.c_str(),rtsp_latency.c_str(),image_width,image_height);
 	cv::VideoCapture capture;
-	// 嵌入式运行不成功，需要网络情况良�?
+	// 嵌入式运行不成功，需要网络情况良�?
 	if (!capture.open(rtsp))
 	{
 		std::cout << "it can not open rtsp!!!!" << std::endl;
@@ -626,6 +638,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	bin_img = cv::Mat(orig_img.rows, orig_img.cols, CV_8UC1, cv::Scalar(0));
 	
 	unsigned int count4tracker = 0;
+	unsigned int openvxframe = 0;
 
 
 	// ��֡�ʵ�̽����
@@ -878,7 +891,8 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 
 
 		// xuewei add some Morphology relevant processing
-	
+	if (openvxframe > 20)
+		{
 		//step one, filter tiny points
 		//RemoveSmallRegion(bin_img, bin_img, 20, 0, 0);	
 		
@@ -886,43 +900,53 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		// ��ֵ�˲�
 		//cv::medianBlur(bin_img, bin_img, 3);
 
-		// �ղ�����
-		cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3), cv::Point(-1, -1));
-		cv::morphologyEx(bin_img, bin_img, CV_MOP_CLOSE, kernel);
-
-		
-		
+		//  using openvx to substitute for opencv morphology operation(first dilate and then erode!) 
 
 		// �������?
 		std::vector<std::vector<cv::Point>> contours;
 		std::vector<cv::Vec4i> hierarcy;
-		
-		// ȡ��ɫ����������һ���ҵ�������
+
+#if UsingOpenvx
+		// try to map memory, not copy
+		vx_image vx_bin_img = nvx_cv::createVXImageFromCVMat(context,bin_img);
+ 		vx_status statusofdilate = vxuDilate3x3(context,vx_bin_img,vx_bin_img); 
+   printf("statusofdilate:%d \n",statusofdilate);
+	 vx_status statusoferode	= vxuErode3x3(context,vx_bin_img,vx_bin_img);
+    printf("statusoferode:%d \n",statusoferode);
+		vxReleaseImage(&vx_bin_img);
 		cv::bitwise_not(bin_img, bin_img);
-
-
-		// �ٲ���һ�����Ͳ����������ڵĿյ���ͨ����,��Ҫ�㷴�ˣ����;��Ƕ�ͼ��ĸ������ֽ������͡�?
+		// not supported the following code 
+		/* 
+		vx_status ret = vxuNot(context,vx_bin_img,vx_bin_img);
+		vx_image vx_bin = nvx_cv::createVXImageFromCVMat(context,bin_img);
+		vxgraph = vxCreateGraph(context);
+		vxmatrix = vxCreateMatrixFromPattern(context, VX_PATTERN_DISK, 7, 7);
+		vxnode = vxNonLinearFilterNode(vxgraph, VX_NONLINEAR_FILTER_MAX, vx_bin, vxmatrix, vx_bin);
+		vxReleaseImage(&vx_bin);  */
 		cv::Mat dilatekernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(7, 7));
 		cv::dilate(bin_img, bin_img, dilatekernel, Point(-1, -1), 1, 0);
-
+#else
+		cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3), cv::Point(-1, -1));
+		cv::morphologyEx(bin_img, bin_img, CV_MOP_CLOSE, kernel);
+		cv::bitwise_not(bin_img, bin_img);
+		cv::Mat dilatekernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(7, 7));
+		cv::dilate(bin_img, bin_img, dilatekernel, Point(-1, -1), 1, 0);
+#endif 
+		
+	
+		
 		cv::namedWindow("after xingtai", WINDOW_NORMAL);
 		imshow("after xingtai", bin_img);
 		waitKey(5);
 
+
 		cv::findContours(bin_img, contours, hierarcy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
 		std::vector<RotatedRect> box(contours.size());
 		std::vector<Rect> boundRect(contours.size());
-
-
 		Point2f m_rect[4];
-
-		
 		BoundingBox m_BBtemp;
 		memset(&m_BBtemp, 0, sizeof(BoundingBox));
-		
-
 		std::vector<BoundingBox> yolov5_currentobj;
-		
 #if yolov5
 		// �ȸ�һ�������������?
 		auto result = detector.Run(orig_img, conf_thres, iou_thres);
@@ -1003,7 +1027,10 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 					v_bbnd.push_back(m_BBtemp);*/
 				//circle(orig_img, Point(box[i].center.x, box[i].center.y), 5, Scalar(0, 255, 0), -1, 8);
 				box[i].points(m_rect);
+#if debug
         	debuglog << "m_rect:" << m_rect[0] << "\t" << m_rect[1]<<"\t" << m_rect[2]<<"\t" << m_rect[3] << endl;
+#endif 
+
 #if LowVersionOpencv
         m_BBtemp.x = m_rect[1].x;
 				m_BBtemp.y = m_rect[1].y;
@@ -1013,7 +1040,6 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 				m_BBtemp.m_status = UnkownObj;
 				v_bbnd.push_back(m_BBtemp);
   
-      
 #else
       	m_BBtemp.x = m_rect[0].x;
 				m_BBtemp.y = m_rect[0].y;
@@ -1088,7 +1114,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 
 		// �����ۼ�����ѭ����ʼ iou track
 
-		if (count4tracker>3)
+		if (count4tracker>25)
 		{
 			//begin to iou track
 			iou_tracks = track_iou(stationary_threshold, lazy_threshold,sigma_h, sigma_iou, t_min, vv_detections);
@@ -1144,6 +1170,13 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 					tmpSplitObj.m_postion.height = static_cast<int>(b.height);
 					tmpSplitObj.moved = false;
 					tmpSplitObj.firstshowframenum = count4tracker;
+#if UsingOpenvx
+					printf("b[%d,%d,%d,%d]\n",static_cast<int>(b.x),static_cast<int>(b.y),static_cast<int>(b.width),static_cast<int>(b.height));
+					if (static_cast<int>(b.x)<0 || static_cast<int>(b.y)<0 || static_cast<int>(b.width)<8 || static_cast<int>(b.height)<8)
+					{
+						continue;
+					}
+#endif 					
 					tmpSplitObj.imgdata = orig_img(tmpSplitObj.m_postion);
 					tmpSplitObj.haschecked = false;
 					tmpSplitObj.checktimes = 1;
@@ -1384,9 +1417,9 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		}
 
 		#endif
-
-
-		count4tracker++;
+	count4tracker++;
+		}
+		openvxframe++;
 		duration = static_cast<double>(cv::getTickCount()) - duration3;
 		duration /= cv::getTickFrequency();
 		std::cout << "\n per frame duration :" << duration;
@@ -1395,7 +1428,10 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		cv::imshow("orig", drawingorig);
 		cv::waitKey(5);
 	}
- debuglog.close();
+#if debug
+ 	debuglog.close();
+#endif
+
 #if yolov5
 	outfile.close();
 #endif
