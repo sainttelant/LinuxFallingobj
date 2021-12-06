@@ -223,7 +223,7 @@ gaussian* Delete_gaussian(gaussian* nptr)
 void RemoveSmallRegion(Mat& Src, Mat& Dst, int AreaLimit, int CheckMode, int NeihborMode)
 {
 	int RemoveCount = 0;       //��¼��ȥ�ĸ���  
-	//��¼ÿ�����ص����״̬�ı�ǩ��?����δ���?�������ڼ��?2������鲻�ϸ���Ҫ��ת��ɫ����?�������ϸ������? 
+	//��¼ÿ�����ص����״̬�ı�ǩ��?����δ���?�������ڼ��?2������鲻�ϸ���Ҫ��ת��ɫ����?�������ϸ������? 
 	Mat Pointlabel = Mat::zeros(Src.size(), CV_8UC1);
 
 	if (CheckMode == 1)
@@ -259,7 +259,7 @@ void RemoveSmallRegion(Mat& Src, Mat& Dst, int AreaLimit, int CheckMode, int Nei
 		}
 	}
 
-	std::vector<Point2i> NeihborPos;  //��¼�����λ��? 
+	std::vector<Point2i> NeihborPos;  //��¼�����λ��? 
 	NeihborPos.push_back(Point2i(-1, 0));
 	NeihborPos.push_back(Point2i(1, 0));
 	NeihborPos.push_back(Point2i(0, -1));
@@ -275,7 +275,7 @@ void RemoveSmallRegion(Mat& Src, Mat& Dst, int AreaLimit, int CheckMode, int Nei
 	else std::cout << "Neighbor mode: 4����." << std::endl;
 	int NeihborCount = 4 + 4 * NeihborMode;
 	int CurrX = 0, CurrY = 0;
-	//��ʼ���? 
+	//��ʼ���? 
 	for (int i = 0; i < Src.rows; ++i)
 	{
 		uchar* iLabel = Pointlabel.ptr<uchar>(i);
@@ -283,11 +283,11 @@ void RemoveSmallRegion(Mat& Src, Mat& Dst, int AreaLimit, int CheckMode, int Nei
 		{
 			if (iLabel[j] == 0)
 			{
-				//********��ʼ�õ㴦�ļ��?*********  
+				//********��ʼ�õ㴦�ļ��?*********  
 				std::vector<cv::Point2i> GrowBuffer;                                      //��ջ�����ڴ洢������  
 				GrowBuffer.push_back(cv::Point2i(j, i));
 				Pointlabel.at<uchar>(i, j) = 1;
-				int CheckResult = 0;                                               //�����жϽ�����Ƿ񳬳���С����?Ϊδ������1Ϊ����  
+				int CheckResult = 0;                                               //�����жϽ�����Ƿ񳬳���С����?Ϊδ������1Ϊ����  
 
 				for (int z = 0; z < GrowBuffer.size(); z++)
 				{
@@ -301,12 +301,12 @@ void RemoveSmallRegion(Mat& Src, Mat& Dst, int AreaLimit, int CheckMode, int Nei
 							if (Pointlabel.at<uchar>(CurrY, CurrX) == 0)
 							{
 								GrowBuffer.push_back(Point2i(CurrX, CurrY));  //��������buffer  
-								Pointlabel.at<uchar>(CurrY, CurrX) = 1;           //���������ļ���ǩ�������ظ����? 
+								Pointlabel.at<uchar>(CurrY, CurrX) = 1;           //���������ļ���ǩ�������ظ����? 
 							}
 						}
 					}
 				}
-				if (GrowBuffer.size() > AreaLimit) CheckResult = 2;                 //�жϽ�����Ƿ񳬳��޶��Ĵ�С����?Ϊδ������2Ϊ����  
+				if (GrowBuffer.size() > AreaLimit) CheckResult = 2;                 //�жϽ�����Ƿ񳬳��޶��Ĵ�С����?Ϊδ������2Ϊ����  
 				else { CheckResult = 1;   RemoveCount++; }
 				for (int z = 0; z < GrowBuffer.size(); z++)                         //����Label��¼  
 				{
@@ -314,7 +314,7 @@ void RemoveSmallRegion(Mat& Src, Mat& Dst, int AreaLimit, int CheckMode, int Nei
 					CurrY = GrowBuffer.at(z).y;
 					Pointlabel.at<uchar>(CurrY, CurrX) += CheckResult;
 				}
-				//********�����õ㴦�ļ��?*********  
+				//********�����õ㴦�ļ��?*********  
 
 
 			}
@@ -322,7 +322,7 @@ void RemoveSmallRegion(Mat& Src, Mat& Dst, int AreaLimit, int CheckMode, int Nei
 	}
 
 	CheckMode = 255 * (1 - CheckMode);
-	//��ʼ��ת�����С������? 
+	//��ʼ��ת�����С������? 
 	for (int i = 0; i < Src.rows; ++i)
 	{
 		uchar* iData = Src.ptr<uchar>(i);
@@ -398,7 +398,7 @@ void removePepperNoise(Mat& mask)
 
 				if (surroundings)
 				{
-					// 5*5 ������ڲ�?*3��С����
+					// 5*5 ������ڲ�?*3��С����
 					*(pUp1 - 1) = *(pUp1) = *(pUp1 + 1) = 255;
 					*(pThis - 1) = *pThis = *(pThis + 1) = 255;
 					*(pDown1 - 1) = *pDown1 = *(pDown1 + 1) = 255;
@@ -512,6 +512,11 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 
 	// Declare matrices to store original and resultant binary image
 	cv::Mat orig_img,drawingorig, bin_img;
+	// for openvx use,must deeply copy
+	
+	cv::Mat vxMat(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC1,cv::Scalar(0));
+	cv::Mat vxMat1(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC1,cv::Scalar(0));
+
 	vx_context context =vxCreateContext();
 	vx_matrix vxmatrix = 0;
     vx_graph vxgraph = 0;
@@ -530,7 +535,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	std::string uri = "rtsp://admin:Ucit2021@10.203.204.198:554/h264/ch1/main/av_stream";
 	sprintf(rtsp, "rtspsrc location=%s latency=%s ! rtph264depay ! h264parse ! omxh264dec ! nvvidconv ! video/x-raw, width=(int)%d, height=(int)%d, format=(string)BGRx ! videoconvert ! appsink sync=false",uri.c_str(),rtsp_latency.c_str(),image_width,image_height);
 	cv::VideoCapture capture;
-	// 嵌入式运行不成功，需要网络情况良�?
+	// 嵌入式运行不成功，需要网络情况良�?
 	if (!capture.open(rtsp))
 	{
 		std::cout << "it can not open rtsp!!!!" << std::endl;
@@ -571,11 +576,11 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	capture.read(orig_img);
 	//orig_img = cv::imread("../data/back1.jpg");
 	cv::resize(orig_img, orig_img, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
-	cv::cvtColor(orig_img, orig_img, cv::COLOR_BGR2YCrCb);
+	cv::cvtColor(orig_img, orig_img, cv::COLOR_BGR2YUV);
 	//cv::GaussianBlur(orig_img, orig_img, cv::Size(3,3), 3.0);
 
 	//Initializing the binary image with the same dimensions as original image
-	bin_img = cv::Mat(orig_img.rows, orig_img.cols, CV_8U, cv::Scalar(0));
+	bin_img = cv::Mat(orig_img.rows, orig_img.cols, CV_8UC1, cv::Scalar(0));
 
 	double value[3];
 	
@@ -643,7 +648,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 
 	// ��֡�ʵ�̽����
 	std::vector< std::vector<BoundingBox>> vv_detections;
-	// ��֡��׷�ٽ��?
+	// ��֡��׷�ٽ��?
 	std::vector< Track > iou_tracks;
 	int splitID=1;
 	vector<xueweiImage::SplitObject> SplitObjForSure;
@@ -724,7 +729,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		for (i = 0; i < nL; i++)
 		{
 			r_ptr = orig_img.ptr(i);
-			// ��ֵ����ͼ��ÿ�����ص�ĵ�ַָ��?
+			// ��ֵ����ͼ��ÿ�����ص�ĵ�ַָ��?
 			b_ptr = bin_img.ptr(i);
 
 			for (j = 0; j < nC; j += 3)
@@ -896,35 +901,56 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		//step one, filter tiny points
 		//RemoveSmallRegion(bin_img, bin_img, 20, 0, 0);	
 		
-		// ��Ч��֤��ֵ�˲��ͱղ����Լ۱���ߣ�ҲЧ���Ϻá�?
+		// ��Ч��֤��ֵ�˲��ͱղ����Լ۱���ߣ�ҲЧ���Ϻá�?
 		// ��ֵ�˲�
 		//cv::medianBlur(bin_img, bin_img, 3);
 
 		//  using openvx to substitute for opencv morphology operation(first dilate and then erode!) 
 
-		// �������?
+		// �������?
 		std::vector<std::vector<cv::Point>> contours;
 		std::vector<cv::Vec4i> hierarcy;
 
 #if UsingOpenvx
 		// try to map memory, not copy
-		vx_image vx_bin_img = nvx_cv::createVXImageFromCVMat(context,bin_img);
- 		vx_status statusofdilate = vxuDilate3x3(context,vx_bin_img,vx_bin_img); 
-   printf("statusofdilate:%d \n",statusofdilate);
-	 vx_status statusoferode	= vxuErode3x3(context,vx_bin_img,vx_bin_img);
-    printf("statusoferode:%d \n",statusoferode);
-		vxReleaseImage(&vx_bin_img);
+     	
+     	vx_image vx_bin = nvx_cv::createVXImageFromCVMat(context,bin_img);
+		vx_image vx_Mat = nvx_cv::createVXImageFromCVMat(context,vxMat);
+	
+
+ 		vx_status statusofdilate = vxuDilate3x3(context,vx_bin,vx_Mat); 
+   		printf("dilate3x3:%d \n",statusofdilate);
+
+		// recopy back to bin_img,
+		// refer to https://github.com/Chevreau-Maxime/Polytech_TegraTX1/blob/ad418b4b509d1cd7fa0e37e1abd710b525247cf0/player/filtrage.h
+		vx_status copyback = nvxuCopyImage(context, vx_Mat, vx_bin);
+		printf("copyback:%d \n",copyback);
+
+		vxuErode3x3(context, vx_bin, vx_Mat); 
+		nvxuCopyImage(context, vx_Mat, vx_bin);
+
+
+		// vxuNot 使用之后opencv不能用
+		/* vx_status ret = vxuNot(context,vx_bin,vx_Mat);
+		printf("vxuNot:%d \n",ret);
+	 */
+
+
+		vxReleaseImage(&vx_bin); 
+		vxReleaseImage(&vx_Mat);
 		cv::bitwise_not(bin_img, bin_img);
-		// not supported the following code 
-		/* 
-		vx_status ret = vxuNot(context,vx_bin_img,vx_bin_img);
-		vx_image vx_bin = nvx_cv::createVXImageFromCVMat(context,bin_img);
-		vxgraph = vxCreateGraph(context);
-		vxmatrix = vxCreateMatrixFromPattern(context, VX_PATTERN_DISK, 7, 7);
-		vxnode = vxNonLinearFilterNode(vxgraph, VX_NONLINEAR_FILTER_MAX, vx_bin, vxmatrix, vx_bin);
-		vxReleaseImage(&vx_bin);  */
-		cv::Mat dilatekernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(7, 7));
-		cv::dilate(bin_img, bin_img, dilatekernel, Point(-1, -1), 1, 0);
+
+
+		vx_image vx_bin1 = nvx_cv::createVXImageFromCVMat(context,bin_img);
+		vx_image vx_Mat1 = nvx_cv::createVXImageFromCVMat(context,vxMat1);
+		vxmatrix = vxCreateMatrixFromPattern(context, VX_PATTERN_BOX, 7, 7);
+		vx_status nonfilter = vxuNonLinearFilter(context, VX_NONLINEAR_FILTER_MAX, vx_bin1, vxmatrix, vx_Mat1); 
+		printf("nonfilter:%d \n",nonfilter);
+		nvxuCopyImage(context, vx_Mat1, vx_bin1);
+
+		vxReleaseImage(&vx_bin1); 
+		vxReleaseImage(&vx_Mat1);
+		
 #else
 		cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3), cv::Point(-1, -1));
 		cv::morphologyEx(bin_img, bin_img, CV_MOP_CLOSE, kernel);
@@ -932,14 +958,10 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		cv::Mat dilatekernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(7, 7));
 		cv::dilate(bin_img, bin_img, dilatekernel, Point(-1, -1), 1, 0);
 #endif 
-		
 	
-		
 		cv::namedWindow("after xingtai", WINDOW_NORMAL);
 		imshow("after xingtai", bin_img);
 		waitKey(5);
-
-
 		cv::findContours(bin_img, contours, hierarcy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
 		std::vector<RotatedRect> box(contours.size());
 		std::vector<Rect> boundRect(contours.size());
@@ -948,7 +970,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		memset(&m_BBtemp, 0, sizeof(BoundingBox));
 		std::vector<BoundingBox> yolov5_currentobj;
 #if yolov5
-		// �ȸ�һ�������������?
+		// �ȸ�һ�������������?
 		auto result = detector.Run(orig_img, conf_thres, iou_thres);
 
 
@@ -990,7 +1012,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		
 #endif
 
-		//  ��ȡ��ǰ���������̽����?
+		//  ��ȡ��ǰ���������̽����?
 		std::vector<BoundingBox>::iterator iters_b = yolov5_currentobj.begin();
 		std::vector<BoundingBox>::iterator iter_e = yolov5_currentobj.end();
 		std::cout << "begin to draw yolov5 detections'results!!" << std::endl;
@@ -1006,7 +1028,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 				8);
 		}
 		
-		// �������ƶ�������
+		printf("contours'size:%d \n",contours.size());
 		for (int i=0; i < contours.size();i++)
 		{
 			box[i] = minAreaRect(Mat(contours[i]));
@@ -1051,7 +1073,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 #endif
 			
 			
-				// keep ��С��Ӿ���?
+				// keep ��С��Ӿ���?
 				for (int j = 0; j < 4; j++)
 				{
 					//line(orig_img, m_rect[j], m_rect[(j + 1) % 4], Scalar(0, 255, 0), 2, 8);
@@ -1203,7 +1225,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 					#if RTSP
 					if (!senderpin.empty())
 					{
-						// �����������ж��Ƿ����µ����������?
+						// �����������ж��Ƿ����µ����������?
 						int index = Analysis.CheckHighestIOU(tmpSplitObj.m_postion, SplitObjForSure);
 						if (index != -1 \
 							&& Analysis.intersectionOU(tmpSplitObj.m_postion, SplitObjForSure[index].m_postion) >= 0.75)
@@ -1226,7 +1248,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 					#else
 					if (!SplitObjForSure.empty())
 					{
-						// �����������ж��Ƿ����µ����������?
+						// �����������ж��Ƿ����µ����������?
 						int index = Analysis.CheckHighestIOU(tmpSplitObj.m_postion, SplitObjForSure);
 						if (index != -1 \
 							&& Analysis.intersectionOU(tmpSplitObj.m_postion, SplitObjForSure[index].m_postion) >= 0.75)
