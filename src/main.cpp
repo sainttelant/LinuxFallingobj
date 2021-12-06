@@ -1,6 +1,3 @@
-#include <NVX/nvx.h>
-#include <NVX/nvx_opencv_interop.hpp>
-
 #include "SplitIF.hpp"
 #include "UA-DETRAC.h"
 // iou relevant
@@ -11,6 +8,8 @@
 
 #define yolov5 0
 #define debug 0
+
+#define DISPLAY 0
 
 // ��960X720 �ȱ���С3��
 #define RESIZE_WIDTH 960
@@ -517,11 +516,13 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	cv::Mat vxMat(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC1,cv::Scalar(0));
 	cv::Mat vxMat1(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC1,cv::Scalar(0));
 
+
 	vx_context context =vxCreateContext();
 	vx_matrix vxmatrix = 0;
     vx_graph vxgraph = 0;
     vx_node vxnode = 0;
 
+		
 
 
 	cv::Mat signalDraw(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC3);
@@ -891,9 +892,10 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 			}
 		}
 
+#if DISPLAY
 		imshow("before xingtai", bin_img);
 		waitKey(5);
-
+#endif
 
 		// xuewei add some Morphology relevant processing
 	if (openvxframe > 20)
@@ -947,7 +949,6 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		vx_status nonfilter = vxuNonLinearFilter(context, VX_NONLINEAR_FILTER_MAX, vx_bin1, vxmatrix, vx_Mat1); 
 		printf("nonfilter:%d \n",nonfilter);
 		nvxuCopyImage(context, vx_Mat1, vx_bin1);
-
 		vxReleaseImage(&vx_bin1); 
 		vxReleaseImage(&vx_Mat1);
 		
@@ -958,10 +959,12 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		cv::Mat dilatekernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(7, 7));
 		cv::dilate(bin_img, bin_img, dilatekernel, Point(-1, -1), 1, 0);
 #endif 
-	
+
+#if DISPLAY
 		cv::namedWindow("after xingtai", WINDOW_NORMAL);
 		imshow("after xingtai", bin_img);
 		waitKey(5);
+#endif
 		cv::findContours(bin_img, contours, hierarcy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
 		std::vector<RotatedRect> box(contours.size());
 		std::vector<Rect> boundRect(contours.size());
@@ -972,8 +975,6 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 #if yolov5
 		// �ȸ�һ�������������?
 		auto result = detector.Run(orig_img, conf_thres, iou_thres);
-
-
 		// ��yolov5�Ľ��д��txt
 		bool ret = write2file(outfile, count4tracker, result);
 		if (1) {
@@ -1193,7 +1194,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 					tmpSplitObj.moved = false;
 					tmpSplitObj.firstshowframenum = count4tracker;
 #if UsingOpenvx
-					printf("b[%d,%d,%d,%d]\n",static_cast<int>(b.x),static_cast<int>(b.y),static_cast<int>(b.width),static_cast<int>(b.height));
+					//printf("b[%d,%d,%d,%d]\n",static_cast<int>(b.x),static_cast<int>(b.y),static_cast<int>(b.width),static_cast<int>(b.height));
 					if (static_cast<int>(b.x)<0 || static_cast<int>(b.y)<0 || static_cast<int>(b.width)<8 || static_cast<int>(b.height)<8)
 					{
 						continue;

@@ -1,8 +1,13 @@
+#ifndef __IMAGEANALYSIS__
+#define __IMAGEANALYSIS__
+
 #include <vector>
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
+#include <NVX/nvx.h>
+#include <NVX/nvx_opencv_interop.hpp>
 
 using namespace std;
 using namespace cv;
@@ -40,6 +45,10 @@ namespace xueweiImage
 	};
 
 }
+
+
+#endif //  __IMAGEANALYSIS__
+
 
 
 

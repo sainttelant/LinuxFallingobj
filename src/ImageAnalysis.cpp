@@ -63,26 +63,26 @@ namespace xueweiImage
 	{
 		if (method == 0)
 		{
-			// 采用hist的办法进行匹配patch
+			// 锟斤拷锟斤拷hist锟侥办法锟斤拷锟斤拷匹锟斤拷patch
 			Mat tmpImg;
 			resize(patch, tmpImg, Size(compared.cols, compared.rows));
 
-			//HSV颜色特征模型(色调H,饱和度S，亮度V)
+
+
+			//HSV锟斤拷色锟斤拷锟斤拷模锟斤拷(色锟斤拷H,锟斤拷锟酵讹拷S锟斤拷锟斤拷锟斤拷V)
 			cvtColor(tmpImg, tmpImg, COLOR_BGR2HSV);
 			cvtColor(compared, compared, COLOR_BGR2HSV);
-			//直方图尺寸设置
-			//一个灰度值可以设定一个bins，256个灰度值就可以设定256个bins
-			//对应HSV格式,构建二维直方图
-			//每个维度的直方图灰度值划分为256块进行统计，也可以使用其他值
+			
+			
 			int hBins = 256, sBins = 256;
 			int histSize[] = { hBins,sBins };
 			//H:0~180, S:0~255,V:0~255
-			//H色调取值范围
+			//H色锟斤拷取值锟斤拷围
 			float hRanges[] = { 0,180 };
-			//S饱和度取值范围
+			//S锟斤拷锟酵讹拷取值锟斤拷围
 			float sRanges[] = { 0,255 };
 			const float* ranges[] = { hRanges,sRanges };
-			int channels[] = { 0,1 };//二维直方图
+			int channels[] = { 0,1 };//锟斤拷维直锟斤拷图
 			MatND hist1, hist2;
 			calcHist(&tmpImg, 1, channels, Mat(), hist1, 2, histSize, ranges, true, false);
 			normalize(hist1, hist1, 0, 1, NORM_MINMAX, -1, Mat());
