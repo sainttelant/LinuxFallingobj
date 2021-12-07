@@ -218,6 +218,56 @@ gaussian* Delete_gaussian(gaussian* nptr)
 	return nptr;
 }
 
+bool judgeInorNot(std::vector<cv::Point2d>& pt, const std::vector<cv::Point2d>& polygons)
+{
+	if (pt.size() < 4)
+	{
+		printf("input rect failure!!<<<<<<");
+		return false;
+	}
+	int numofNonintersection = 0;
+
+	for (int j = 0; j < pt.size(); j++)
+	{
+		int nCross = 0;    // 定义变量，统计目标点向右画射线与多边形相交次数
+		for (int i = 0; i < polygons.size(); i++)
+		{   //遍历多边形每一个节点
+
+			cv::Point2d p1;
+			cv::Point2d p2;
+
+			p1 = polygons[i];
+			p2 = polygons[(i + 1) % polygons.size()];  // p1是这个节点，p2是下一个节点，两点连线是多边形的一条边
+	// 以下算法是用是先以y轴坐标来判断的
+
+			if (p1.y == p2.y)
+				continue;   //如果这条边是水平的，跳过
+
+
+			if (pt[j].y < min(p1.y, p2.y)) //如果目标点低于这个线段，跳过
+				continue;
+
+			if (pt[j].y >= max(p1.y, p2.y)) //如果目标点高于这个线段，跳过
+				continue;
+			//那么下面的情况就是：如果过p1画水平线，过p2画水平线，目标点在这两条线中间
+			double x = (double)(pt[j].y - p1.y) * (double)(p2.x - p1.x) / (double)(p2.y - p1.y) + p1.x;
+			// 这段的几何意义是 过目标点，画一条水平线，x是这条线与多边形当前边的交点x坐标
+			if (x > pt[j].x)
+				nCross++; //如果交点在右边，统计加一。这等于从目标点向右发一条射线（ray），与多边形各边的相交（crossing）次数
+		}
+
+		if (nCross % 2 == 1) {
+
+			return true; //如果是奇数，说明在多边形里
+		}
+		else {
+			//numofNonintersection++;
+			//return false; //否则在多边形外 或 边上
+		}
+	}
+	return false;
+}
+
 //CheckMode: 0����ȥ��������1����ȥ��������; NeihborMode��0����4����1����8����;  
 void RemoveSmallRegion(Mat& Src, Mat& Dst, int AreaLimit, int CheckMode, int NeihborMode)
 {
@@ -513,8 +563,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	cv::Mat orig_img,drawingorig, bin_img;
 	// for openvx use,must deeply copy
 	
-	cv::Mat vxMat(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC1,cv::Scalar(0));
-	cv::Mat vxMat1(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC1,cv::Scalar(0));
+	
 
 
 	vx_context context =vxCreateContext();
@@ -577,12 +626,41 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	capture.read(orig_img);
 	//orig_img = cv::imread("../data/back1.jpg");
 	cv::resize(orig_img, orig_img, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
-	cv::cvtColor(orig_img, orig_img, cv::COLOR_BGR2YUV);
+	
+
+	printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Hits <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
+	printf(">>>>>>>>>>>>>>>>>>please Rectangle the ROI area to run obj detection!!!<<<<<<<<<<<\n");
+	printf(">>>>>>>>>>>>>>>>>>please Rectangle the ROI area to run obj detection!!!<<<<<<<<<<<\n");
+	printf(">>>>>>>>>>>>>>>>>>please Rectangle the ROI area to run obj detection!!!<<<<<<<<<<<\n");
+	printf(">>>>>>>>>>>>>>>>>>please Rectangle the ROI area to run obj detection!!!<<<<<<<<<<<\n");
+	printf(">>>>>>>>>>>>>>>>>>please Rectangle the ROI area to run obj detection!!!<<<<<<<<<<<\n");
+	printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
+
+	cv::Rect2d roi = cv::selectROI(orig_img);
+	// prepare for judgeinornot 
+	std::vector<Point2d> regions;
+	Point2d p1(roi.x, roi.y);
+	Point2d p2(roi.x + roi.width, roi.y);
+	Point2d p3(roi.x + roi.width, roi.y + roi.height);
+	Point2d p4(roi.x, roi.y + roi.height);
+	regions.push_back(p1);
+	regions.push_back(p2);
+	regions.push_back(p3);
+	regions.push_back(p4);
+
+	cv::Mat roiregion = orig_img(roi);
+	cv::cvtColor(roiregion, roiregion, cv::COLOR_BGR2YCrCb);
+
+	imshow("roi",roiregion);
+	cv::waitKey(0);
+
+
 	//cv::GaussianBlur(orig_img, orig_img, cv::Size(3,3), 3.0);
 
 	//Initializing the binary image with the same dimensions as original image
-	bin_img = cv::Mat(orig_img.rows, orig_img.cols, CV_8UC1, cv::Scalar(0));
-
+	bin_img = cv::Mat(roiregion.rows, roiregion.cols, CV_8UC1, cv::Scalar(0));
+	cv::Mat vxMat(roiregion.rows, roiregion.cols, CV_8UC1,cv::Scalar(0));
+	cv::Mat vxMat1(roiregion.rows, roiregion.cols, CV_8UC1,cv::Scalar(0));	
 	double value[3];
 	
 
@@ -590,10 +668,10 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	cv::Vec3f val;
 	uchar* r_ptr;
 	uchar* b_ptr;
-	for (i = 0; i < orig_img.rows; i++)
+	for (i = 0; i < roiregion.rows; i++)
 	{
-		r_ptr = orig_img.ptr(i);
-		for (j = 0; j < orig_img.cols; j++)
+		r_ptr = roiregion.ptr(i);
+		for (j = 0; j < roiregion.cols; j++)
 		{
 
 			N_ptr = Create_Node(*r_ptr, *(r_ptr + 1), *(r_ptr + 2));
@@ -614,16 +692,16 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 
 	int nL, nC;
 
-	if (orig_img.isContinuous() == true)
+	if (roiregion.isContinuous() == true)
 	{
 		nL = 1;
-		nC = orig_img.rows * orig_img.cols * orig_img.channels();
+		nC = roiregion.rows * roiregion.cols * roiregion.channels();
 	}
 
 	else
 	{
-		nL = orig_img.rows;
-		nC = orig_img.cols * orig_img.channels();
+		nL = roiregion.rows;
+		nC = roiregion.cols * roiregion.channels();
 	}
 
 	double del[3], mal_dist;
@@ -641,7 +719,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 
 	//Step 2: Modelling each pixel with Gaussian
 	duration1 = static_cast<double>(cv::getTickCount());
-	bin_img = cv::Mat(orig_img.rows, orig_img.cols, CV_8UC1, cv::Scalar(0));
+	bin_img = cv::Mat(roiregion.rows, roiregion.cols, CV_8UC1, cv::Scalar(0));
 	
 	unsigned int count4tracker = 0;
 	unsigned int openvxframe = 0;
@@ -697,14 +775,14 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 
 
 		bool ret = capture.grab();
-		capture >> orig_img;
-		if (orig_img.empty())
+		capture >> roiregion;
+		if (roiregion.empty())
 		{
 			continue;
 		}
 		else
 		{
-			cv::resize(orig_img, orig_img, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
+			cv::resize(roiregion, roiregion, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
 		}
 
 #else
@@ -714,6 +792,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		else
 		{
 			cv::resize(orig_img, orig_img, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
+			roiregion = orig_img(roi);
 		}
 #endif
 
@@ -722,14 +801,14 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		int count1 = 0;
 		iou_tracks.clear();
 
-		orig_img.copyTo(drawingorig);
+		roiregion.copyTo(drawingorig);
 
 
 		N_ptr = N_start;
 		duration = static_cast<double>(cv::getTickCount());
 		for (i = 0; i < nL; i++)
 		{
-			r_ptr = orig_img.ptr(i);
+			r_ptr = roiregion.ptr(i);
 			// ��ֵ����ͼ��ÿ�����ص�ĵ�ַָ��?
 			b_ptr = bin_img.ptr(i);
 
@@ -945,7 +1024,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 
 		vx_image vx_bin1 = nvx_cv::createVXImageFromCVMat(context,bin_img);
 		vx_image vx_Mat1 = nvx_cv::createVXImageFromCVMat(context,vxMat1);
-		vxmatrix = vxCreateMatrixFromPattern(context, VX_PATTERN_BOX, 7, 7);
+		vxmatrix = vxCreateMatrixFromPattern(context, VX_PATTERN_BOX, 9, 9);
 		vx_status nonfilter = vxuNonLinearFilter(context, VX_NONLINEAR_FILTER_MAX, vx_bin1, vxmatrix, vx_Mat1); 
 		printf("nonfilter:%d \n",nonfilter);
 		nvxuCopyImage(context, vx_Mat1, vx_bin1);
@@ -974,11 +1053,11 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		std::vector<BoundingBox> yolov5_currentobj;
 #if yolov5
 		// �ȸ�һ�������������?
-		auto result = detector.Run(orig_img, conf_thres, iou_thres);
+		auto result = detector.Run(roiregion, conf_thres, iou_thres);
 		// ��yolov5�Ľ��д��txt
 		bool ret = write2file(outfile, count4tracker, result);
 		if (1) {
-			Demo(orig_img, result, class_names,false);
+			Demo(roiregion, result, class_names,false);
 		}
 #else
 	#if RTSP		
@@ -1014,19 +1093,45 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 #endif
 
 		//  ��ȡ��ǰ���������̽����?
-		std::vector<BoundingBox>::iterator iters_b = yolov5_currentobj.begin();
-		std::vector<BoundingBox>::iterator iter_e = yolov5_currentobj.end();
+		std::vector<Point2d> yolov5Points;
 		std::cout << "begin to draw yolov5 detections'results!!" << std::endl;
-		for (; iters_b != iter_e; iters_b++)
+		for (std::vector<BoundingBox>::iterator iters_b = yolov5_currentobj.begin();iters_b< yolov5_currentobj.end();)
 		{
-			rectangle(drawingorig,
-				Point((int)iters_b->x,
-					(int)iters_b->y),
-				Point((int)iters_b->x + (int)iters_b->width,
-					(int)iters_b->y + (int)iters_b->height),
-				Scalar(0, 0, 255),
-				2,
-				8);
+				yolov5Points.clear();
+				cv::Point topleft, topright, bottomleft, bottomright;
+				topleft.x = (int)iters_b->x;
+				topleft.y = (int)iters_b->y;
+				topright.x = (int)iters_b->x + (int)iters_b->width;
+				topright.y = (int)iters_b->y;
+				bottomleft.x = (int)iters_b->x;
+				bottomleft.y = (int)iters_b->y + (int)iters_b->height;
+				bottomright.x = (int)iters_b->x + (int)iters_b->width;
+				bottomright.y = (int)iters_b->y + (int)iters_b->height;
+				yolov5Points.push_back(topleft);
+				yolov5Points.push_back(topright);
+				yolov5Points.push_back(bottomright);
+				yolov5Points.push_back(bottomleft);
+				bool insideornot = judgeInorNot(yolov5Points, regions);
+				if (insideornot)
+				{
+					iters_b->x = iters_b->x - roi.x;
+					iters_b->y = iters_b->y - roi.y;
+					
+					rectangle(drawingorig,
+						Point((int)iters_b->x-roi.x,
+							(int)iters_b->y-roi.y),
+						Point((int)iters_b->x + (int)iters_b->width-roi.x,
+							(int)iters_b->y + (int)iters_b->height-roi.y),
+						Scalar(0, 0, 255),
+						2,
+						8);
+					iters_b++;
+				}
+				else
+				{
+					iters_b = yolov5_currentobj.erase(iters_b);
+				}
+
 		}
 		
 		printf("contours'size:%d \n",contours.size());
@@ -1048,7 +1153,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 					m_BBtemp.score = 1;
 					m_BBtemp.m_status = UnkownObj;
 					v_bbnd.push_back(m_BBtemp);*/
-				//circle(orig_img, Point(box[i].center.x, box[i].center.y), 5, Scalar(0, 255, 0), -1, 8);
+				//circle(roiregion, Point(box[i].center.x, box[i].center.y), 5, Scalar(0, 255, 0), -1, 8);
 				box[i].points(m_rect);
 #if debug
         	debuglog << "m_rect:" << m_rect[0] << "\t" << m_rect[1]<<"\t" << m_rect[2]<<"\t" << m_rect[3] << endl;
@@ -1077,7 +1182,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 				// keep ��С��Ӿ���?
 				for (int j = 0; j < 4; j++)
 				{
-					//line(orig_img, m_rect[j], m_rect[(j + 1) % 4], Scalar(0, 255, 0), 2, 8);
+					//line(roiregion, m_rect[j], m_rect[(j + 1) % 4], Scalar(0, 255, 0), 2, 8);
 				}
 			}
 		}
@@ -1200,7 +1305,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 						continue;
 					}
 #endif 					
-					tmpSplitObj.imgdata = orig_img(tmpSplitObj.m_postion);
+					tmpSplitObj.imgdata = roiregion(tmpSplitObj.m_postion);
 					tmpSplitObj.haschecked = false;
 					tmpSplitObj.checktimes = 1;
 					// copy a result to senderpin
@@ -1218,7 +1323,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 					SenderResults.m_postion.height = static_cast<int>(b.height);
 					SenderResults.moved = false;
 					SenderResults.firstshowframenum = count4tracker;
-					SenderResults.imgdata = orig_img(tmpSplitObj.m_postion);
+					SenderResults.imgdata = roiregion(tmpSplitObj.m_postion);
 					SenderResults.haschecked = false;
 					SenderResults.checktimes = 1;	
 #endif
@@ -1297,7 +1402,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 			{
 				/*sprintf(judge,"judge whether the obj[%d] is moved out \n", iter->ID);*/
 				// 
-				cv::Mat currentpatchhere = orig_img(iter->m_postion);
+				cv::Mat currentpatchhere = roiregion(iter->m_postion);
 				bool movedout = Analysis.BemovedOut(iter->imgdata, currentpatchhere, 0);
 				iter->haschecked = true;
 				iter->checktimes++;
@@ -1321,7 +1426,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 			}
 			else if (iter->haschecked && timeinterval>(CHECK_INTERVAL*iter->checktimes))
 			{
-				cv::Mat currentpatchhere = orig_img(iter->m_postion);
+				cv::Mat currentpatchhere = roiregion(iter->m_postion);
 				bool movedout = Analysis.BemovedOut(iter->imgdata, currentpatchhere, 0);
 				iter->checktimes++;
 				if (movedout)
@@ -1372,7 +1477,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 			{
 				/*sprintf(judge,"judge whether the obj[%d] is moved out \n", iter->ID);*/
 				// 
-				cv::Mat currentpatchhere = orig_img(iter->m_postion);
+				cv::Mat currentpatchhere = roiregion(iter->m_postion);
 				bool movedout = Analysis.BemovedOut(iter->imgdata, currentpatchhere, 0);
 				iter->haschecked = true;
 				iter->checktimes++;
@@ -1396,7 +1501,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 			}
 			else if (iter->haschecked && timeinterval>(CHECK_INTERVAL*iter->checktimes))
 			{
-				cv::Mat currentpatchhere = orig_img(iter->m_postion);
+				cv::Mat currentpatchhere = roiregion(iter->m_postion);
 				bool movedout = Analysis.BemovedOut(iter->imgdata, currentpatchhere, 0);
 				iter->checktimes++;
 				if (movedout)

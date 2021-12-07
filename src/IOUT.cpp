@@ -70,7 +70,7 @@ std::vector<LeftObjects> smalltrack(float status_threshold,
 
 	std::cout << "Num of frames > " << numFrames << std::endl;
 
-	// ±éÀú¶àÖ¡µÄÌ½²âÄ¿±ê¼¯ºÏ
+	// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¡ï¿½ï¿½Ì½ï¿½ï¿½Ä¿ï¿½ê¼¯ï¿½ï¿½
 	for (frame; frame < numFrames; frame++)
 	{
 		int activate_frame_count = 0;
@@ -112,7 +112,7 @@ std::vector<LeftObjects> smalltrack(float status_threshold,
 			// If the track was not updated...
 			if (!updated)
 			{
-				// Check the conditions to finish the track,ÓÐÁ¬Ðøt_min ¶¼´óÓÚiouãÐÖµ£¬ÔòÈ·¶¨ÎÞÒÉ,ÊÇ×·×ÙÄ¿±ê
+				// Check the conditions to finish the track,ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½t_min ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½iouï¿½ï¿½Öµï¿½ï¿½ï¿½ï¿½È·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½,ï¿½ï¿½×·ï¿½ï¿½Ä¿ï¿½ï¿½
 
 
 				if (track.m_box.size() >= t_min)
@@ -124,7 +124,7 @@ std::vector<LeftObjects> smalltrack(float status_threshold,
 
 		} // End for active tracks
 
-		/// Create new tracks£¬µÚÒ»´ÎÒ²³õÊ¼»¯Õâ¸öactive_tracks
+		/// Create new tracksï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½Ò²ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ï¿½active_tracks
 		for (auto box : frameBoxes)
 		{
 			std::vector<cv::Rect> b;
@@ -170,7 +170,7 @@ std::vector< Track > track_iou(float status_threshold, float lazy_threshold, \
 	int numFrames = detections.size();
 	std::cout << "Num of frames > " << numFrames << std::endl;
 
-	// ±éÀú¶àÖ¡µÄÌ½²âÄ¿±ê¼¯ºÏ
+	// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¡ï¿½ï¿½Ì½ï¿½ï¿½Ä¿ï¿½ê¼¯ï¿½ï¿½
 	for (frame; frame < numFrames; frame++)
 	{
 		int activate_frame_count = 0;
@@ -191,7 +191,7 @@ std::vector< Track > track_iou(float status_threshold, float lazy_threshold, \
 			{ 
 				float iou_score = intersectionOverUnion(track.boxes.back(), frameBoxes[index]);
 
-				// ¼ÆËãobjµÄ¿í¸ß,Ãæ»ý½Ï´óµÄÎïÌå£¬²ÉÓÃ¸ü¼ÓÑÏ¸ñµÄiou±ê×¼
+				// ï¿½ï¿½ï¿½ï¿½objï¿½Ä¿ï¿½ï¿½ï¿½,ï¿½ï¿½ï¿½ï¿½Ï´ï¿½ï¿½ï¿½ï¿½ï¿½å£¬ï¿½ï¿½ï¿½Ã¸ï¿½ï¿½ï¿½ï¿½Ï¸ï¿½ï¿½iouï¿½ï¿½×¼
 				track.areasize = track.boxes.back().width * track.boxes.back().height;
 				if (track.areasize > 2500)
 				{
@@ -212,7 +212,7 @@ std::vector< Track > track_iou(float status_threshold, float lazy_threshold, \
 						track.stationary_count = 0;
 					}
 
-					if (track.stationary_count > 22)
+					if (track.stationary_count > 16)
 					{
 						track.status = Static_Sure;
 					}
@@ -236,7 +236,7 @@ std::vector< Track > track_iou(float status_threshold, float lazy_threshold, \
 						track.stationary_count = 0;
 					}
 
-					if (track.stationary_count > 22)
+					if (track.stationary_count > 16)
 					{
 						track.status = Static_Sure;
 					}
@@ -256,7 +256,7 @@ std::vector< Track > track_iou(float status_threshold, float lazy_threshold, \
 			// If the track was not updated...
 			if (!updated)
 			{
-				// Check the conditions to finish the track,ÓÐÁ¬Ðøt_min ¶¼´óÓÚiouãÐÖµ£¬ÔòÈ·¶¨ÎÞÒÉ,ÊÇ×·×ÙÄ¿±ê
+				// Check the conditions to finish the track,ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½t_min ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½iouï¿½ï¿½Öµï¿½ï¿½ï¿½ï¿½È·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½,ï¿½ï¿½×·ï¿½ï¿½Ä¿ï¿½ï¿½
 				
 			
 				if (track.max_score >= sigma_h && track.boxes.size() >= t_min)
@@ -270,7 +270,7 @@ std::vector< Track > track_iou(float status_threshold, float lazy_threshold, \
 
 		} // End for active tracks
 
-		/// Create new tracks£¬µÚÒ»´ÎÒ²³õÊ¼»¯Õâ¸öactive_tracks
+		/// Create new tracksï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½Ò²ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ï¿½active_tracks
 		for (auto box : frameBoxes)
 		{
 			std::vector<BoundingBox> b;
