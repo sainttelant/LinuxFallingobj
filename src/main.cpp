@@ -20,7 +20,7 @@
 #define LowVersionOpencv 1
 #define UsingOpenvx 1
 #define READIMGONLY 0
-#define RTSP 0
+#define RTSP 1
 using namespace cv;
 //using namespace std;
 
@@ -476,6 +476,7 @@ void SplitObjIF::SplitIF::Setdata(SplitObjReceiver inferout)
 	m_Data.timestamp = inferout.timestamp;
 	m_Data.v_inferout = inferout.v_inferout;
 	m_Data.framenum = inferout.framenum;
+	inferout.imageData.copyTo(m_Data.imageData);
 };
 
 SplitObjIF::SplitObjReceiver SplitObjIF::SplitIF::GetReceiverData()
@@ -494,9 +495,12 @@ unsigned int SplitObjIF::SplitIF::Getinnerframecount()
 	return innerframecount;
 };
 
-std::vector<SplitObjIF::SplitObjSender> SplitObjIF::SplitIF::RunSplitDetect(bool run)
+
+void SplitObjIF::SplitIF::RunSplitDetect(SplitObjReceiver &datain,std::vector<SplitObjIF::SplitObjSender>& dataout,bool run)
 {
-	std::vector<SplitObjIF::SplitObjSender> v_senderpin;
+	//std::vector<SplitObjIF::SplitObjSender> v_senderpin;
+	SplitObjIF::SplitIF::Setdata(datain);
+
 	if (run)
 	{
 		printf(">>>>>>>>>>>>>>now, Turn splitobj detection ON!<<<<<<<<<<<<<<<\n");
@@ -510,17 +514,17 @@ std::vector<SplitObjIF::SplitObjSender> SplitObjIF::SplitIF::RunSplitDetect(bool
 		printf(">>>>>>>>>>>>>>now, Turn splitobj detection ON!<<<<<<<<<<<<<<<\n");
 		printf(">>>>>>>>>>>>>>now, Turn splitobj detection ON!<<<<<<<<<<<<<<<\n");
 		
-		work(v_senderpin);
+		work(dataout);
 	}
 	else
 	{
 		printf("turn SplitObj detection off!");
-		if(!v_senderpin.empty())
+		if(!dataout.empty())
 		{
-			v_senderpin.clear();
+			dataout.clear();
 		}
 	}
-	return v_senderpin;
+	
 }
 
 void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
@@ -578,19 +582,28 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	
 	//Declare a VideoCapture object to store incoming frame and initialize it
 #if RTSP
-	char rtsp[1000];
-	int image_width = 2560;
-	int image_height = 1440;
-	std::string rtsp_latency = "0";
-	std::string uri = "rtsp://admin:Ucit2021@10.203.204.198:554/h264/ch1/main/av_stream";
-	sprintf(rtsp, "rtspsrc location=%s latency=%s ! rtph264depay ! h264parse ! omxh264dec ! nvvidconv ! video/x-raw, width=(int)%d, height=(int)%d, format=(string)BGRx ! videoconvert ! appsink sync=false",uri.c_str(),rtsp_latency.c_str(),image_width,image_height);
 	cv::VideoCapture capture;
-	// 嵌入式运行不成功，需要网络情况良�?
-	if (!capture.open(rtsp))
+	if (!inferData.imageData.empty())
+	{
+		orig_img = inferData.imageData;
+	}
+	else
+	{
+		char rtsp[1000];
+		int image_width = 2560;
+		int image_height = 1440;
+		std::string rtsp_latency = "0";
+		std::string uri = "rtsp://admin:Ucit2021@10.203.204.198:554/h264/ch1/main/av_stream";
+		sprintf(rtsp, "rtspsrc location=%s latency=%s ! rtph264depay ! h264parse ! omxh264dec ! nvvidconv ! video/x-raw, width=(int)%d, height=(int)%d, format=(string)BGRx ! videoconvert ! appsink sync=false",uri.c_str(),rtsp_latency.c_str(),image_width,image_height);
+		// 嵌入式运行不成功，需要网络情况良�?
+		if (!capture.open(rtsp))
 	{
 		std::cout << "it can not open rtsp!!!!" << std::endl;
 		return;
+	}	
+
 	}
+	
 
 #if READIMGONLY
 	while (1)
@@ -617,13 +630,17 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 #endif // RTSP
 
 #if RTSP
-	bool ret = capture.grab();
-	capture >> orig_img;
+
+	if (inferData.imageData.empty())
+	{
+		bool ret = capture.grab();
+		capture >> orig_img;
+	}
 #else
 	capture.read(orig_img);
 #endif // RTSP
 
-	capture.read(orig_img);
+	
 	//orig_img = cv::imread("../data/back1.jpg");
 	cv::resize(orig_img, orig_img, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
 	
@@ -771,9 +788,11 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		std::vector<BoundingBox> v_bbnd;
 		v_bbnd.clear();
 		
-		#if RTSP
+#if RTSP
 
-
+	if (inferData.imageData.empty())
+	{
+		// use old rtsp directly acquire!
 		bool ret = capture.grab();
 		capture >> roiregion;
 		if (roiregion.empty())
@@ -784,6 +803,13 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		{
 			cv::resize(roiregion, roiregion, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
 		}
+	}
+	else
+	{
+		orig_img = inferData.imageData;
+		cv::resize(orig_img, orig_img, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
+		roiregion = orig_img(roi);
+	}
 
 #else
 		if (!capture.read(orig_img)) {
@@ -1571,7 +1597,8 @@ int main()
 
 	bool Runokay = true;
 	std::vector<SplitObjIF::SplitObjSender> v_objsender;
-   	v_objsender=SplitObjIF::SplitIF::Instance().RunSplitDetect(Runokay);
+	SplitObjIF::SplitObjReceiver datain;
+   	SplitObjIF::SplitIF::Instance().RunSplitDetect(datain,v_objsender,Runokay);
 	system("PAUSE");
 	return 0;
 }
