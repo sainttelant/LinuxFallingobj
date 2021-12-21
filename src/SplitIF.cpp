@@ -8,7 +8,7 @@
 
 #define yolov5 0
 #define debug 0
-#define DISPLAY 1
+#define DISPLAY 0
 
 // ��960X720 �ȱ���С3��
 #define RESIZE_WIDTH 960
@@ -477,7 +477,7 @@ void SplitObjIF::SplitIF::Setdata(SplitObjReceiver inferout)
 	m_Data.timestamp = inferout.timestamp;
 	m_Data.v_inferout = inferout.v_inferout;
 	m_Data.framenum = inferout.framenum;
-	inferout.imageData.copyTo(m_Data.imageData);
+	m_Data.imageData = inferout.imageData;
 };
 
 SplitObjIF::SplitObjReceiver SplitObjIF::SplitIF::GetReceiverData()
@@ -803,11 +803,8 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	
 #endif
 
-	
 
 
-	//while (1)
-	//{
 
 		duration3 = static_cast<double>(cv::getTickCount());
 		std::vector<BoundingBox> v_bbnd;
@@ -1509,9 +1506,9 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 				cv::putText(drawingorig,judge,cv::Point(8,5+(100*offset)),3,1.25,cv::Scalar(0,0,255));
 				offset++;
 				sprintf(displayindex, "patch_%d ", iter->ID);
-				cv::namedWindow(displayindex, WINDOW_NORMAL);
+				/* cv::namedWindow(displayindex, WINDOW_NORMAL);
 				cv::imshow(displayindex, iter->imgdata);
-				cv::waitKey(5);
+				cv::waitKey(5); */
 				iter++;
 			}
 		}
@@ -1598,9 +1595,12 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		duration = static_cast<double>(cv::getTickCount()) - duration3;
 		duration /= cv::getTickFrequency();
 		std::cout << "\n per frame duration :" << duration;
+		std::cout << "\n per frame duration :" << duration;
+		std::cout << "\n per frame duration :" << duration;
+
 		cv::namedWindow("orig", WINDOW_NORMAL);
 		cv::imshow("orig", drawingorig);
-		cv::waitKey(5);
+		cv::waitKey(3);
 
 
 
