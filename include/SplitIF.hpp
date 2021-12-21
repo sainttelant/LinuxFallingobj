@@ -52,7 +52,7 @@ namespace SplitObjIF
 
 
     void work(std::vector<SplitObjIF::SplitObjSender> &senderpin);
-
+    
 
     class SplitIF
     {
@@ -67,12 +67,15 @@ namespace SplitObjIF
         void Setinnerframecount(unsigned int framecount);
         unsigned int Getinnerframecount();
         SplitObjReceiver GetReceiverData();
+     
     private:
 
         SplitIF();
         virtual ~SplitIF();
         SplitObjReceiver m_Data;
         unsigned int innerframecount;
+        bool trigger;
+        
     };
     
     

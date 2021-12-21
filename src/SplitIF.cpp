@@ -8,8 +8,7 @@
 
 #define yolov5 0
 #define debug 0
-
-#define DISPLAY 0
+#define DISPLAY 1
 
 // ��960X720 �ȱ���С3��
 #define RESIZE_WIDTH 960
@@ -229,16 +228,16 @@ bool judgeInorNot(std::vector<cv::Point2d>& pt, const std::vector<cv::Point2d>& 
 
 	for (int j = 0; j < pt.size(); j++)
 	{
-		int nCross = 0;    // 定义变量，统计目标点向右画射线与多边形相交次数
+		int nCross = 0;    // 定义变量，统计目标点向右画射线与多边形相交次�?
 		for (int i = 0; i < polygons.size(); i++)
-		{   //遍历多边形每一个节点
+		{   //遍历多边形每一个节�?
 
 			cv::Point2d p1;
 			cv::Point2d p2;
 
 			p1 = polygons[i];
 			p2 = polygons[(i + 1) % polygons.size()];  // p1是这个节点，p2是下一个节点，两点连线是多边形的一条边
-	// 以下算法是用是先以y轴坐标来判断的
+	// 以下算法是用是先以y轴坐标来判断�?
 
 			if (p1.y == p2.y)
 				continue;   //如果这条边是水平的，跳过
@@ -249,20 +248,20 @@ bool judgeInorNot(std::vector<cv::Point2d>& pt, const std::vector<cv::Point2d>& 
 
 			if (pt[j].y >= max(p1.y, p2.y)) //如果目标点高于这个线段，跳过
 				continue;
-			//那么下面的情况就是：如果过p1画水平线，过p2画水平线，目标点在这两条线中间
+			//那么下面的情况就是：如果过p1画水平线，过p2画水平线，目标点在这两条线中�?
 			double x = (double)(pt[j].y - p1.y) * (double)(p2.x - p1.x) / (double)(p2.y - p1.y) + p1.x;
 			// 这段的几何意义是 过目标点，画一条水平线，x是这条线与多边形当前边的交点x坐标
 			if (x > pt[j].x)
-				nCross++; //如果交点在右边，统计加一。这等于从目标点向右发一条射线（ray），与多边形各边的相交（crossing）次数
+				nCross++; //如果交点在右边，统计加一。这等于从目标点向右发一条射线（ray），与多边形各边的相交（crossing）次�?
 		}
 
 		if (nCross % 2 == 1) {
 
-			return true; //如果是奇数，说明在多边形里
+			return true; //如果是奇数，说明在多边形�?
 		}
 		else {
 			//numofNonintersection++;
-			//return false; //否则在多边形外 或 边上
+			//return false; //否则在多边形�?�?边上
 		}
 	}
 	return false;
@@ -545,10 +544,51 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	double weight = 0.0;
 	double var = 0.0;
 	double muR, muG, muB, dR, dG, dB, rVal, gVal, bVal;	
+	cv::VideoCapture capture;
+	cv::Mat roiregion;
 
-	if(!trigger)
-	{
-		#if yolov5
+	int i, j, k;
+	i = j = k = 0;
+	int nL, nC;
+
+	cv::Mat orig_img,drawingorig, bin_img, vxMat,vxMat1;
+	static cv::Rect2d roi;
+	
+	vx_context context =vxCreateContext();
+	vx_matrix vxmatrix = 0;
+    vx_graph vxgraph = 0;
+    vx_node vxnode = 0;
+	cv::Mat signalDraw(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC3);
+	std::vector< Track > iou_tracks;	
+
+	cv::Vec3f val;
+	uchar* r_ptr;
+	uchar* b_ptr;
+
+		// ��֡�ʵ�̽����
+	std::vector< std::vector<BoundingBox>> vv_detections;
+	// ��֡��׷�ٽ��?
+	
+	int splitID=1;
+	vector<xueweiImage::SplitObject> SplitObjForSure;
+	xueweiImage::ImageAnalysis Analysis;
+
+	unsigned int count4tracker = 0;
+	static unsigned int openvxframe = 0;
+
+	std::vector<Point2d> regions;
+
+	
+	float stationary_threshold = 0.90;		// low detection threshold,�޸�һ�£�����ĳɴ���������Ǿ�̬����
+	float lazy_threshold = 0.70;
+	float sigma_h = 0.7;		// high detection threshold,��ѡdetection�����ĵ÷֣���ʵ������û�����ã�����ͨ��classify������
+	float sigma_iou = 0.2;	// IOU threshold
+	float t_min = 3;		// minimum track length in frames
+
+	SplitObjIF::SplitObjSender SenderResults;
+
+	
+	#if yolov5
 
 	std::ofstream outfile("../results/yolov5.txt");
 
@@ -558,7 +598,12 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	
 	// 接入inferout
 	SplitObjIF::SplitObjReceiver inferData = SplitObjIF::SplitIF::Instance().GetReceiverData();
-	SplitObjIF::SplitObjSender SenderResults;
+	cout<<"trying fetch img srcs<<<<<<<<<<<<"<<endl;
+	cout<<"trying fetch img srcs<<<<<<<<<<<<"<<endl;
+	cout<<"trying fetch img srcs<<<<<<<<<<<<"<<endl;
+	cout<<"trying fetch img srcs<<<<<<<<<<<<"<<endl;
+	cout<<"trying fetch img srcs<<<<<<<<<<<<"<<endl;
+
 	memset(&SenderResults,0,sizeof(SplitObjIF::SplitObjSender));
 #else
 	std::ifstream infile("../results/yolov5_xuewei_960_720.txt");
@@ -577,33 +622,18 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	
 
 #endif
-	int i, j, k;
-	i = j = k = 0;
 
-
-	// Declare matrices to store original and resultant binary image
-	cv::Mat orig_img,drawingorig, bin_img;
-	// for openvx use,must deeply copy
-	
-	
-
-
-	vx_context context =vxCreateContext();
-	vx_matrix vxmatrix = 0;
-    vx_graph vxgraph = 0;
-    vx_node vxnode = 0;
-
-		
-
-
-	cv::Mat signalDraw(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC3);
 	
 	//Declare a VideoCapture object to store incoming frame and initialize it
 #if RTSP
-	cv::VideoCapture capture;
+	
 	if (!inferData.imageData.empty())
 	{
 		orig_img = inferData.imageData;
+		cout<<"refer to imageData<<<<<<<<<<<<<<"<<endl;
+		cout<<"refer to imageData<<<<<<<<<<<<<<"<<endl;
+		cout<<"refer to imageData<<<<<<<<<<<<<<"<<endl;
+		cout<<"refer to imageData<<<<<<<<<<<<<<"<<endl;
 	}
 	else
 	{
@@ -647,7 +677,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	cv::VideoCapture capture("../data/out_xuewei.mp4");
 #endif // RTSP
 
-#if RTSP
+/* #if RTSP
 
 	if (inferData.imageData.empty())
 	{
@@ -656,13 +686,16 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	}
 #else
 	capture.read(orig_img);
-#endif // RTSP
+#endif // RTSP */
 
 	
 	//orig_img = cv::imread("../data/back1.jpg");
 	cv::resize(orig_img, orig_img, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
 	
-
+	if(!SplitIF::Instance().trigger )
+	{
+	
+	
 	printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Hits <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
 	printf(">>>>>>>>>>>>>>>>>>please Rectangle the ROI area to run obj detection!!!<<<<<<<<<<<\n");
 	printf(">>>>>>>>>>>>>>>>>>please Rectangle the ROI area to run obj detection!!!<<<<<<<<<<<\n");
@@ -671,9 +704,9 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	printf(">>>>>>>>>>>>>>>>>>please Rectangle the ROI area to run obj detection!!!<<<<<<<<<<<\n");
 	printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
 
-	cv::Rect2d roi = cv::selectROI(orig_img);
+	roi = cv::selectROI(orig_img);
 	// prepare for judgeinornot 
-	std::vector<Point2d> regions;
+	
 	Point2d p1(roi.x, roi.y);
 	Point2d p2(roi.x + roi.width, roi.y);
 	Point2d p3(roi.x + roi.width, roi.y + roi.height);
@@ -683,26 +716,22 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	regions.push_back(p3);
 	regions.push_back(p4);
 
-	cv::Mat roiregion = orig_img(roi);
+	roiregion = orig_img(roi);
 	cv::cvtColor(roiregion, roiregion, cv::COLOR_BGR2YCrCb);
 
-	imshow("roi",roiregion);
-	cv::waitKey(0);
 
 
 	//cv::GaussianBlur(orig_img, orig_img, cv::Size(3,3), 3.0);
 
 	//Initializing the binary image with the same dimensions as original image
-	bin_img = cv::Mat(roiregion.rows, roiregion.cols, CV_8UC1, cv::Scalar(0));
-	cv::Mat vxMat(roiregion.rows, roiregion.cols, CV_8UC1,cv::Scalar(0));
-	cv::Mat vxMat1(roiregion.rows, roiregion.cols, CV_8UC1,cv::Scalar(0));	
+	//bin_img = cv::Mat(roiregion.rows, roiregion.cols, CV_8UC1, cv::Scalar(0));
+	vxMat= cv::Mat(roiregion.rows, roiregion.cols, CV_8UC1,cv::Scalar(0));
+	vxMat1= cv::Mat(roiregion.rows, roiregion.cols, CV_8UC1,cv::Scalar(0));	
 	double value[3];
 	
 
 	//Step 1: initializing with one gaussian for the first time and keeping the no. of models as 1
-	cv::Vec3f val;
-	uchar* r_ptr;
-	uchar* b_ptr;
+	
 	for (i = 0; i < roiregion.rows; i++)
 	{
 		r_ptr = roiregion.ptr(i);
@@ -725,8 +754,6 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 
 
 
-	int nL, nC;
-
 	if (roiregion.isContinuous() == true)
 	{
 		nL = 1;
@@ -745,27 +772,14 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	duration1 = static_cast<double>(cv::getTickCount());
 	bin_img = cv::Mat(roiregion.rows, roiregion.cols, CV_8UC1, cv::Scalar(0));
 	
-	unsigned int count4tracker = 0;
-	unsigned int openvxframe = 0;
-
-
-	// ��֡�ʵ�̽����
-	std::vector< std::vector<BoundingBox>> vv_detections;
-	// ��֡��׷�ٽ��?
-	std::vector< Track > iou_tracks;
-	int splitID=1;
-	vector<xueweiImage::SplitObject> SplitObjForSure;
-	xueweiImage::ImageAnalysis Analysis;
-
-
-	float stationary_threshold = 0.90;		// low detection threshold,�޸�һ�£�����ĳɴ���������Ǿ�̬����
-	float lazy_threshold = 0.70;
-	float sigma_h = 0.7;		// high detection threshold,��ѡdetection�����ĵ÷֣���ʵ������û�����ã�����ͨ��classify������
-	float sigma_iou = 0.2;	// IOU threshold
-	float t_min = 3;		// minimum track length in frames
-
 	std::cout<<"fps: "<<capture.get(cv::CAP_PROP_FPS)<<std::endl;
 	
+	SplitIF::Instance().trigger = true;
+
+
+	};
+
+
 
 #if yolov5
 	// �����������������yolov5
@@ -789,9 +803,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	
 #endif
 
-		trigger = true;
-
-	};
+	
 
 
 	//while (1)
@@ -802,27 +814,23 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		v_bbnd.clear();
 		
 #if RTSP
-	SplitObjIF::SplitObjReceiver inferData = SplitObjIF::SplitIF::Instance().GetReceiverData();	
-	if (inferData.imageData.empty())
-	{
-		// use old rtsp directly acquire!
-		bool ret = capture.grab();
-		capture >> roiregion;
-		if (roiregion.empty())
+		if(orig_img.empty())
 		{
-			continue;
+			cout<<"it is not possible the orig_img is empty in this place"<<endl;
 		}
-		else
-		{
-			cv::resize(roiregion, roiregion, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
+		else{
+			cout<<"execute the demand of orig_img = inferData.imageData<<<<<"<<endl;
+			cout<<"execute the demand of orig_img = inferData.imageData<<<<<"<<endl;
+			cout<<"execute the demand of orig_img = inferData.imageData<<<<<"<<endl;
+			cout<<"execute the demand of orig_img = inferData.imageData<<<<<"<<endl;
+			orig_img = inferData.imageData;
+			cv::resize(orig_img, orig_img, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
+			roiregion = orig_img(roi);
+			bin_img = cv::Mat(roiregion.rows, roiregion.cols, CV_8UC1, cv::Scalar(0));
+			vxMat= cv::Mat(roiregion.rows, roiregion.cols, CV_8UC1,cv::Scalar(0));
+			vxMat1= cv::Mat(roiregion.rows, roiregion.cols, CV_8UC1,cv::Scalar(0));	
 		}
-	}
-	else
-	{
-		orig_img = inferData.imageData;
-		cv::resize(orig_img, orig_img, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
-		roiregion = orig_img(roi);
-	}
+
 
 #else
 		if (!capture.read(orig_img)) {
@@ -836,10 +844,10 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 #endif
 
 		//break;
-		int count = 0;
 		int count1 = 0;
 		iou_tracks.clear();
 
+	
 		roiregion.copyTo(drawingorig);
 
 
@@ -1050,7 +1058,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		nvxuCopyImage(context, vx_Mat, vx_bin);
 
 
-		// vxuNot 使用之后opencv不能用
+		// vxuNot 使用之后opencv不能�?
 		/* vx_status ret = vxuNot(context,vx_bin,vx_Mat);
 		printf("vxuNot:%d \n",ret);
 	 */
@@ -1590,7 +1598,6 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		duration = static_cast<double>(cv::getTickCount()) - duration3;
 		duration /= cv::getTickFrequency();
 		std::cout << "\n per frame duration :" << duration;
-		std::cout << "\n counts : " << count;
 		cv::namedWindow("orig", WINDOW_NORMAL);
 		cv::imshow("orig", drawingorig);
 		cv::waitKey(5);
@@ -1608,14 +1615,5 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 
 }
 
-int main()
-{
 
-	bool Runokay = true;
-	std::vector<SplitObjIF::SplitObjSender> v_objsender;
-	SplitObjIF::SplitObjReceiver datain;
-   	SplitObjIF::SplitIF::Instance().RunSplitDetect(datain,v_objsender,Runokay);
-	system("PAUSE");
-	return 0;
-}
 
