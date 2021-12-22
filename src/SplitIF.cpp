@@ -1365,6 +1365,11 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 					SenderResults.m_postion.y = static_cast<int>(b.y);
 					SenderResults.m_postion.width = static_cast<int>(b.width);
 					SenderResults.m_postion.height = static_cast<int>(b.height);
+					SenderResults.origlayout.x = (SenderResults.m_postion.x + (int)roi.x)* (float)2560/(float)RESIZE_WIDTH;
+					SenderResults.origlayout.y = (SenderResults.m_postion.y + (int)roi.y) * (float)1440 / (float)RESIZE_HEIGHT;
+					SenderResults.origlayout.width = SenderResults.m_postion.width* (float)2560 / (float)RESIZE_WIDTH;
+					SenderResults.origlayout.height = SenderResults.m_postion.height* (float)1440 / (float)RESIZE_HEIGHT;	
+
 					SenderResults.moved = false;
 					SenderResults.firstshowframenum = count4tracker;
 					SenderResults.imgdata = roiregion(tmpSplitObj.m_postion);

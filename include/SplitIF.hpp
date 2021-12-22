@@ -32,6 +32,7 @@ namespace SplitObjIF
         long appearing_timestamp;
         long dispearing_timestamp;
         cv::Rect m_postion;
+        cv::Rect origlayout;
 		cv::Mat imgdata;
 		unsigned int firstshowframenum;
 		int ID;
@@ -67,14 +68,14 @@ namespace SplitObjIF
         void Setinnerframecount(unsigned int framecount);
         unsigned int Getinnerframecount();
         SplitObjReceiver GetReceiverData();
-     
+          bool trigger;
     private:
 
         SplitIF();
         virtual ~SplitIF();
         SplitObjReceiver m_Data;
         unsigned int innerframecount;
-        bool trigger;
+      
         
     };
     
