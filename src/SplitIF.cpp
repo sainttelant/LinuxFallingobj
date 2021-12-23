@@ -565,18 +565,18 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	uchar* r_ptr;
 	uchar* b_ptr;
 
-		// ��֡�ʵ�̽����
-	std::vector< std::vector<BoundingBox>> vv_detections;
-	// ��֡��׷�ٽ��?
+		// ï¿œï¿œÖ¡ï¿œÊµï¿œÌœï¿œï¿œï¿œï¿œ
+	static std::vector< std::vector<BoundingBox>> vv_detections;
+	// ï¿œï¿œÖ¡ï¿œï¿œ×·ï¿œÙœï¿œï¿?
 	
 	int splitID=1;
-	vector<xueweiImage::SplitObject> SplitObjForSure;
+	static vector<xueweiImage::SplitObject> SplitObjForSure;
 	xueweiImage::ImageAnalysis Analysis;
 
-	unsigned int count4tracker = 0;
+	static unsigned int count4tracker = 0;
 	static unsigned int openvxframe = 0;
-
-	std::vector<Point2d> regions;
+  
+	static std::vector<Point2d> regions;
 
 	
 	float stationary_threshold = 0.90;		// low detection threshold,�޸�һ�£�����ĳɴ���������Ǿ�̬����
