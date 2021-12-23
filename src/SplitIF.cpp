@@ -499,7 +499,7 @@ unsigned int SplitObjIF::SplitIF::Getinnerframecount()
 
 void SplitObjIF::SplitIF::RunSplitDetect(SplitObjReceiver &datain,std::vector<SplitObjIF::SplitObjSender>& dataout,bool run)
 {
-	//std::vector<SplitObjIF::SplitObjSender> v_senderpin;
+	
 	SplitObjIF::SplitIF::Setdata(datain);
 
 	if (run)
@@ -585,7 +585,8 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	float sigma_iou = 0.2;	// IOU threshold
 	float t_min = 3;		// minimum track length in frames
 
-	SplitObjIF::SplitObjSender SenderResults;
+	static SplitObjIF::SplitObjSender SenderResults;
+	static std::vector<SplitObjIF::SplitObjSender> v_forSenders;
 
 	
 	#if yolov5
@@ -604,7 +605,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	cout<<"trying fetch img srcs<<<<<<<<<<<<"<<endl;
 	cout<<"trying fetch img srcs<<<<<<<<<<<<"<<endl;
 
-	memset(&SenderResults,0,sizeof(SplitObjIF::SplitObjSender));
+	//memset(&SenderResults,0,sizeof(SplitObjIF::SplitObjSender));
 #else
 	std::ifstream infile("../results/yolov5_xuewei_960_720.txt");
 
@@ -1375,10 +1376,10 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 					SenderResults.imgdata = roiregion(tmpSplitObj.m_postion);
 					SenderResults.haschecked = false;
 					SenderResults.checktimes = 1;	
-#endif
+	#endif
 					char display[256];
 					#if RTSP
-					if (!senderpin.empty())
+					if (!v_forSenders.empty())
 					{
 						// �����������ж��Ƿ����µ����������?
 						int index = Analysis.CheckHighestIOU(tmpSplitObj.m_postion, SplitObjForSure);
@@ -1389,14 +1390,14 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 						}
 						else
 						{
-							senderpin.push_back(SenderResults);
+							v_forSenders.push_back(SenderResults);
 							splitID++;
 						}
 						
 					}
 					else
 					{
-						senderpin.push_back(SenderResults);
+						v_forSenders.push_back(SenderResults);
 						splitID++;
 					}
 
@@ -1444,7 +1445,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 
 		#if RTSP
 
-		for (vector<SplitObjIF::SplitObjSender>::iterator iter = senderpin.begin(); iter < senderpin.end();)
+		for (vector<SplitObjIF::SplitObjSender>::iterator iter = v_forSenders.begin(); iter < v_forSenders.end();)
 		{
 			int timeinterval = count4tracker - iter->firstshowframenum;
 			if (timeinterval > CHECK_INTERVAL && !iter->haschecked)
@@ -1462,7 +1463,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 					offset++;
 					sprintf(destroypatchname, "patch_%d", iter->ID);
 					cv::destroyAllWindows();
-					iter = senderpin.erase(iter);
+					iter = v_forSenders.erase(iter);
 				}
 				else
 				{
@@ -1485,7 +1486,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 					offset++;
 					sprintf(destroypatchname, "patch_%d", iter->ID);
 					cv::destroyAllWindows();
-					iter = senderpin.erase(iter);
+					iter = v_forSenders.erase(iter);
 				}
 				else
 				{
@@ -1516,6 +1517,23 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 				cv::waitKey(5); */
 				iter++;
 			}
+		}
+
+		SplitObjSender tempersend;
+		for (int i=0; i< v_forSenders.size();i++)
+		{
+			tempersend.appearing_timestamp = v_forSenders[i].appearing_timestamp;
+			tempersend.checktimes = v_forSenders[i].checktimes;
+			tempersend.dispearing_timestamp = v_forSenders[i].dispearing_timestamp;
+			tempersend.firstshowframenum = v_forSenders[i].firstshowframenum;
+			tempersend.haschecked = v_forSenders[i].haschecked;
+			tempersend.ID = v_forSenders[i].ID;
+			tempersend.m_gps = v_forSenders[i].m_gps;
+			tempersend.m_radarpos = v_forSenders[i].m_radarpos;
+			tempersend.moved = v_forSenders[i].moved;
+			tempersend.SplitID = v_forSenders[i].SplitID;
+			tempersend.origlayout = v_forSenders[i].origlayout;
+			senderpin.push_back(tempersend);	
 		}
 
 		#else
@@ -1594,8 +1612,13 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		}
 
 		#endif
-	count4tracker++;
-		}
+			count4tracker++;
+
+
+
+	}
+
+		
 		openvxframe++;
 		duration = static_cast<double>(cv::getTickCount()) - duration3;
 		duration /= cv::getTickFrequency();
