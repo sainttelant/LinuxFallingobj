@@ -90,7 +90,7 @@ namespace xueweiImage
 			normalize(hist2, hist2, 0, 1, NORM_MINMAX, -1, Mat());
 			double similarityValue = compareHist(hist1, hist2, HISTCMP_CORREL);
 
-			if (similarityValue >= 0.1)
+			if (similarityValue >= 0.3)
 			{
 				std::cout << "not be moved out"<<"\n"<< std::endl;
 				return false;
@@ -100,11 +100,7 @@ namespace xueweiImage
 				std::cout << "even though it is not possible, return false" << "\n" << std::endl;
 				return false;
 			}
-			std::cout << "be moved out<<<<<<<<<<<<" << similarityValue<<"\n"<< std::endl;
-			std::cout << "be moved out<<<<<<<<<<<<" << similarityValue<<"\n"<< std::endl;
-			std::cout << "be moved out<<<<<<<<<<<<" << similarityValue<<"\n"<< std::endl;
-			std::cout << "be moved out<<<<<<<<<<<<" << similarityValue<<"\n"<< std::endl;
-			std::cout << "be moved out<<<<<<<<<<<<" << similarityValue<<"\n"<< std::endl;
+
 			return true;
 		}
 		else

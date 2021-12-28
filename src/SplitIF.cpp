@@ -817,10 +817,6 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 			cout<<"it is not possible the orig_img is empty in this place"<<endl;
 		}
 		else{
-			cout<<"execute the demand of orig_img = inferData.imageData<<<<<"<<endl;
-			cout<<"execute the demand of orig_img = inferData.imageData<<<<<"<<endl;
-			cout<<"execute the demand of orig_img = inferData.imageData<<<<<"<<endl;
-			cout<<"execute the demand of orig_img = inferData.imageData<<<<<"<<endl;
 			orig_img = inferData.imageData;
 			cv::resize(orig_img, orig_img, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
 			roiregion = orig_img(roi);
@@ -844,8 +840,6 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		//break;
 		int count1 = 0;
 		iou_tracks.clear();
-
-	
 		roiregion.copyTo(drawingorig);
 
 
@@ -1054,13 +1048,6 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 
 		vxuErode3x3(context, vx_bin, vx_Mat); 
 		nvxuCopyImage(context, vx_Mat, vx_bin);
-
-
-		// vxuNot 使用之后opencv不能�?
-		/* vx_status ret = vxuNot(context,vx_bin,vx_Mat);
-		printf("vxuNot:%d \n",ret);
-	 */
-
 
 		vxReleaseImage(&vx_bin); 
 		vxReleaseImage(&vx_Mat);
