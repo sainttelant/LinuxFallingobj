@@ -1,8 +1,6 @@
 #include "SplitIF.hpp"
 #include "UA-DETRAC.h"
 // iou relevant
-#include "IOUT.h"
-#include "ImageAnalysis.hpp"
 #include "FrameDiff.h"
 
 
@@ -462,9 +460,18 @@ void removePepperNoise(Mat& mask)
 }
 
  SplitObjIF::SplitIF::SplitIF(/* args */)
- :trigger(false),
- innerframecount(0)
+ :trigger(false)
+ , innerframecount(0)
+ , count4tracker(0)
+ , openvxframe(0)
+ , stationary_threshold(0.9f)
+ , lazy_threshold(0.7f)
+ , sigma_h(0.7f)
+ , sigma_iou(0.2f)
+ , t_min(3.0f)
+	
 {
+
 };
     
 SplitObjIF::SplitIF::~SplitIF()
@@ -479,6 +486,11 @@ void SplitObjIF::SplitIF::Setdata(SplitObjReceiver inferout)
 	m_Data.framenum = inferout.framenum;
 	m_Data.imageData = inferout.imageData;
 };
+
+bool SplitObjIF::SplitIF::InitData()
+{
+	return true;
+}
 
 SplitObjIF::SplitObjReceiver SplitObjIF::SplitIF::GetReceiverData()
 {
@@ -528,7 +540,7 @@ void SplitObjIF::SplitIF::RunSplitDetect(SplitObjReceiver &datain,std::vector<Sp
 	
 }
 
-void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
+void SplitObjIF::SplitIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 {
 
 
@@ -552,7 +564,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	int nL, nC;
 
 	cv::Mat orig_img,drawingorig, bin_img, vxMat,vxMat1;
-	static cv::Rect2d roi;
+
 	
 	vx_context context =vxCreateContext();
 	vx_matrix vxmatrix = 0;
@@ -564,31 +576,8 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	cv::Vec3f val;
 	uchar* r_ptr;
 	uchar* b_ptr;
-
-		// ï¿œï¿œÖ¡ï¿œÊµï¿œÌœï¿œï¿œï¿œï¿œ
-	static std::vector< std::vector<BoundingBox>> vv_detections;
-	// ï¿œï¿œÖ¡ï¿œï¿œ×·ï¿œÙœï¿œï¿?
-	
 	int splitID=1;
-	static vector<xueweiImage::SplitObject> SplitObjForSure;
 	xueweiImage::ImageAnalysis Analysis;
-
-	static unsigned int count4tracker = 0;
-	static unsigned int openvxframe = 0;
-  
-	static std::vector<Point2d> regions;
-
-	
-	float stationary_threshold = 0.90;		// low detection threshold,�޸�һ�£�����ĳɴ���������Ǿ�̬����
-	float lazy_threshold = 0.70;
-	float sigma_h = 0.7;		// high detection threshold,��ѡdetection�����ĵ÷֣���ʵ������û�����ã�����ͨ��classify������
-	float sigma_iou = 0.2;	// IOU threshold
-	float t_min = 3;		// minimum track length in frames
-
-	static SplitObjIF::SplitObjSender SenderResults;
-	static std::vector<SplitObjIF::SplitObjSender> v_forSenders;
-
-	
 	#if yolov5
 
 	std::ofstream outfile("../results/yolov5.txt");
@@ -678,18 +667,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	cv::VideoCapture capture("../data/out_xuewei.mp4");
 #endif // RTSP
 
-/* #if RTSP
 
-	if (inferData.imageData.empty())
-	{
-		bool ret = capture.grab();
-		capture >> orig_img;
-	}
-#else
-	capture.read(orig_img);
-#endif // RTSP */
-
-	
 	//orig_img = cv::imread("../data/back1.jpg");
 	cv::resize(orig_img, orig_img, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
 	

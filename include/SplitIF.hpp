@@ -9,6 +9,8 @@
 #include <memory>
 #include <time.h>
 #include <string>
+#include "IOUT.h"
+#include "ImageAnalysis.hpp"
 
 namespace SplitObjIF
 {
@@ -52,7 +54,7 @@ namespace SplitObjIF
     };
 
 
-    void work(std::vector<SplitObjIF::SplitObjSender> &senderpin);
+    
     
 
     class SplitIF
@@ -63,19 +65,38 @@ namespace SplitObjIF
 			static SplitIF m_SplitIF;
 			return m_SplitIF;
 		};
+
         void RunSplitDetect(SplitObjReceiver &datain,std::vector<SplitObjIF::SplitObjSender>& dataout,bool run);
+        void work(std::vector<SplitObjIF::SplitObjSender> &senderpin);
+
+        bool InitData();
+
         void Setdata(SplitObjReceiver inferout);
         void Setinnerframecount(unsigned int framecount);
         unsigned int Getinnerframecount();
         SplitObjReceiver GetReceiverData();
-          bool trigger;
+        bool trigger;
     private:
 
         SplitIF();
         virtual ~SplitIF();
         SplitObjReceiver m_Data;
         unsigned int innerframecount;
-      
+        cv::Rect2d roi;
+        std::vector< std::vector<BoundingBox>> vv_detections;
+        std::vector<xueweiImage::SplitObject> SplitObjForSure;
+        unsigned int count4tracker;
+	    unsigned int openvxframe;
+	    std::vector<cv::Point2d> regions;
+        SplitObjIF::SplitObjSender SenderResults;
+	    std::vector<SplitObjIF::SplitObjSender> v_forSenders;
+
+        float stationary_threshold;		// low detection threshold
+        float lazy_threshold;
+        float sigma_h;		// high detection threshold
+        float sigma_iou;	// IOU threshold
+        float t_min;		// minimum track length in frames
+
         
     };
     
